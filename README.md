@@ -10,7 +10,8 @@ No framework, no server. Upload the whole `site/` folder to any web host.
 ```
 site/
   index.html                       ← GENERATED home page
-  listings/<address>.html          ← GENERATED, one per home
+  4311/index.html                  ← GENERATED, Norman listing at gaydonnesellshomes.com/4311
+  listings/<address>.html          ← GENERATED, other homes (and a redirect from the old Norman address)
   tools/build.py                   ← the data + templates that generate the pages above
   tools/hdr.swift                  ← photo "HDR look" tool (Core Image)
   tools/logo.swift                 ← logo background removal (made images/brand/*.png)
@@ -34,7 +35,8 @@ python3 tools/build.py
 ```
 
 - `AGENT` — name, phone, email, license, bio, stats, social links, portrait path.
-- `LISTINGS` — one dictionary per home: address, price, status, beds/baths/sqft/lot, hero photo,
+- `LISTINGS` — one dictionary per home. Optional `"path": "4311"` gives it a short address
+  (gaydonnesellshomes.com/4311); without it the page lives at listings/<slug>.html. Fields: address, price, status, beds/baths/sqft/lot, hero photo,
   photo list (file + caption), which five photos make the mosaic, overview paragraphs, features,
   details rows, optional `video` / `tour` / `floorplan` URLs (adds a Video · 3D Tour · Floor Plans row)
   and optional `documents` (adds Brochure/Documents links under the overview).
