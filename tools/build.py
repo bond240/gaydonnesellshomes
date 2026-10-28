@@ -18,10 +18,10 @@ AGENT = {
     "license": "Oklahoma License #170092",
     "photo": "images/agent.jpg",              # About section portrait
     "photo_contact": "images/agent-contact.jpg",  # Get in Touch card (bottom of every page)
-    "bio": ["Placeholder bio. For more than a decade, Gaydonne Nusz has represented homes across the Oklahoma City metro, from Norman and Moore to Edmond and the countryside beyond. Clients value discretion, precise market knowledge, and a calm, confident process from first showing to closing.",
-            "Gaydonne is a licensed Oklahoma REALTOR® with ShowOKC Real Estate."],
-    "stats": [("$120M+", "Career sales"), ("12", "Years"), ("Top 1%", "Oklahoma agents")],   # placeholders
-    "socials": [("Facebook", "#"), ("Instagram", "#"), ("LinkedIn", "#"), ("Zillow", "#")],     # replace # with links
+    "bio": ["Gaydonne Nusz is a REALTOR® with ShowOKC Real Estate and has spent 12 years helping Oklahomans buy and sell homes across the Oklahoma City metro, from Yukon, Mustang, and Edmond to Norman, Midwest City, and the surrounding communities.",
+            "Her work covers single-family homes, first-time buyers, relocations, investment and farm property, land, new construction, and luxury homes, and she is recognized by the Oklahoma Housing Finance Agency as a Blue Ribbon Agent. Clients consistently recommend her for a calm, straightforward process from first showing to closing."],
+    "stats": [("12", "Years experience"), ("60+", "Homes sold"), ("100%", "Client recommended")],
+    "socials": [("Facebook", "https://www.facebook.com/nuszrealty"), ("Instagram", "#"), ("LinkedIn", "#"), ("Zillow", "#")],   # replace # with links
 }
 
 # Photo order + captions for the Norman house (file numbers in images/norman)
