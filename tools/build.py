@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds index.html and listings/*.html from the data below.
+"""Builds index.html and one page per listing (at <path>/ when a listing sets "path", else listings/<slug>.html).
 Run from the site folder:  python3 tools/build.py
 Edit AGENT / LISTINGS, re-run, upload the site folder. Output is plain static HTML."""
 import html, os, pathlib
@@ -30,6 +30,7 @@ NORMAN_PHOTOS = [(3,"Front elevation"),(43,"Timber-framed entry"),(1,"Covered fr
 LISTINGS = [
   {
     "slug": "4311-se-37th-st-norman",
+    "path": "4311",                       # short address: gaydonnesellshomes.com/4311
     "street": "4311 SE 37th St", "city": "Norman", "state": "OK", "zip": "73072",
     "price": "$425,000", "status": "New Listing",
     "beds": "3", "baths": "2", "sqft": "2,280", "lot": "2.56 acres",
@@ -64,6 +65,19 @@ LISTINGS = [
 ]
 
 E = html.escape
+
+def page_href(L):
+    """Link to a listing from the site root: its short path folder, or listings/<slug>.html."""
+    return f'{L["path"]}/' if L.get("path") else f'listings/{L["slug"]}.html'
+
+REDIRECT = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Redirecting…</title>
+<link rel="canonical" href="{url}">
+<meta http-equiv="refresh" content="0; url={href}">
+<script>location.replace("{href}" + location.hash)</script>
+</head><body><a href="{href}">This listing has moved here.</a></body></html>
+"""
 HEAD_FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com">\n  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">'
 
 def nav(rel, links, solid=False):
@@ -162,7 +176,7 @@ def listing_page(L):
   <meta property="og:type" content="website">
   <meta property="og:title" content="{E(L["street"])}, {E(L["city"])} — {E(L["price"])}">
   <meta property="og:description" content="{E(L["beds"])} bed · {E(L["baths"])} bath · {E(L["sqft"])} sq ft · {E(L["lot"])}. Showings by appointment.">
-  <meta property="og:url" content="{DOMAIN}/listings/{L["slug"]}.html">
+  <meta property="og:url" content="{DOMAIN}/{page_href(L)}">
   <meta property="og:image" content="{DOMAIN}/{L["hero"]}">
   <meta name="twitter:card" content="summary_large_image">
   {HEAD_FONTS}
@@ -247,7 +261,7 @@ def index_page():
     for L in LISTINGS:
         cards += f'''
       <article class="property">
-        <a class="property__media" href="listings/{L["slug"]}.html">
+        <a class="property__media" href="{page_href(L)}">
           <img src="{L.get("card", L["hero"])}" alt="{E(L["street"])}, {E(L["city"])}" loading="lazy">
           <span class="tag{' tag--sold' if L["status"].lower() in ('sold','pending') else ''}">{E(L["status"])}</span>
         </a>
@@ -256,7 +270,7 @@ def index_page():
           <div class="property__city">{E(L["city"])}, {E(L["state"])} {E(L["zip"])}</div>
           <div class="property__price">{E(L["price"])}</div>
           <div class="specs"><span><b>{E(L["beds"])}</b>beds</span><span><b>{E(L["baths"])}</b>baths</span><span><b>{E(L["sqft"])}</b>sq ft</span><span><b>{E(L["lot"])}</b>lot</span></div>
-          <a class="btn btn--outline property__link" href="listings/{L["slug"]}.html">View Property</a>
+          <a class="btn btn--outline property__link" href="{page_href(L)}">View Property</a>
         </div>
       </article>'''
     stats = "".join(f'<div class="stat"><b>{E(v)}</b><span>{E(k)}</span></div>' for v, k in a["stats"])
@@ -327,7 +341,16 @@ def index_page():
 if __name__ == "__main__":
     (ROOT / "listings").mkdir(exist_ok=True)
     for L in LISTINGS:
-        (ROOT / "listings" / f'{L["slug"]}.html').write_text(listing_page(L))
-        print("wrote listings/" + L["slug"] + ".html")
+        if L.get("path"):
+            (ROOT / L["path"]).mkdir(exist_ok=True)
+            (ROOT / L["path"] / "index.html").write_text(listing_page(L))
+            print(f'wrote {L["path"]}/index.html')
+            # keep the old long address working for links already shared
+            (ROOT / "listings" / f'{L["slug"]}.html').write_text(
+                REDIRECT.format(href=f'../{L["path"]}/', url=f'{DOMAIN}/{L["path"]}/'))
+            print(f'wrote listings/{L["slug"]}.html (redirect)')
+        else:
+            (ROOT / "listings" / f'{L["slug"]}.html').write_text(listing_page(L))
+            print("wrote listings/" + L["slug"] + ".html")
     (ROOT / "index.html").write_text(index_page())
     print("wrote index.html")
