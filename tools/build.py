@@ -5,7 +5,7 @@ Edit AGENT / LISTINGS, re-run, upload the site folder. Output is plain static HT
 import html, os, pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-DOMAIN = "https://bond240.github.io/gaydonnesellshomes"   # change to the custom domain once it is set up (used for Facebook previews)
+DOMAIN = "https://gaydonnesellshomes.com"   # used for Facebook previews
 FORM_ACTION = "https://formspree.io/f/YOUR_FORM_ID"   # replace with your Formspree form id
 
 AGENT = {
