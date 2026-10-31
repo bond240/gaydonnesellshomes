@@ -321,7 +321,7 @@ def index_page():
 {nav(rel, links)}
 
 <section class="hero" id="top">
-  <img class="hero__img" src="images/hero-living.jpg" alt="">
+  <img class="hero__img" src="images/hero-front-hq.jpg" alt="">
   <div class="hero__content">
     <h1 class="hero__title">Exceptional Homes</h1>
     <div class="hero__sub">Presented by {E(a["name"])} · {E(a["brokerage"])}</div>
