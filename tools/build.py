@@ -47,6 +47,15 @@ LISTINGS = [
     "video": None, "tour": None, "floorplan": None,     # add URLs to show Video / 3D Tour / Floor Plans
     "documents": [],                                     # e.g. [("Brochure", "docs/4311-brochure.pdf")]
   },
+  {
+    # Sold homes get a card with a SOLD stamp on the home page only: no page, no links.
+    "sold": True,
+    "slug": "408-pumpkin-cir-yukon",
+    "street": "408 Pumpkin Cir", "city": "Yukon", "state": "OK", "zip": "73099",
+    "status": "Sold", "sold_note": "Represented the buyer · Sold August 2026",
+    "beds": "3", "baths": "2", "sqft": "1,278", "lot": "9,004 sq ft",
+    "hero": "images/sold/408-pumpkin-cir.jpg",
+  },
 ]
 
 E = html.escape
@@ -243,6 +252,22 @@ def index_page():
     a = AGENT
     cards = ""
     for L in LISTINGS:
+        if L.get("sold"):
+            cards += f'''
+      <article class="property property--sold">
+        <div class="property__media">
+          <img src="{L["hero"]}" alt="{E(L["street"])}, {E(L["city"])}" loading="lazy">
+          <span class="stamp">Sold</span>
+        </div>
+        <div class="property__body">
+          <h3 class="property__addr">{E(L["street"])}</h3>
+          <div class="property__city">{E(L["city"])}, {E(L["state"])} {E(L["zip"])}</div>
+          <div class="property__price">Sold</div>
+          <div class="specs"><span><b>{E(L["beds"])}</b>beds</span><span><b>{E(L["baths"])}</b>baths</span><span><b>{E(L["sqft"])}</b>sq ft</span><span><b>{E(L["lot"])}</b>lot</span></div>
+          <p class="property__note">{E(L["sold_note"])}</p>
+        </div>
+      </article>'''
+            continue
         cards += f'''
       <article class="property">
         <a class="property__media" href="{page_href(L)}">
@@ -325,6 +350,8 @@ def index_page():
 if __name__ == "__main__":
     (ROOT / "listings").mkdir(exist_ok=True)
     for L in LISTINGS:
+        if L.get("sold"):
+            continue
         if L.get("path"):
             (ROOT / L["path"]).mkdir(exist_ok=True)
             (ROOT / L["path"] / "index.html").write_text(listing_page(L))

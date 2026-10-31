@@ -170,6 +170,9 @@ p { margin: 0 0 1em; }
 .specs { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .specs b { font-weight: 500; color: var(--ink); margin-right: 4px; }
 .property__link { margin-top: 28px; width: max-content; }
+.property--sold:hover .property__media img { transform: none; }
+.stamp { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-14deg); padding: 0.12em 0.5em 0.1em; border: 0.09em solid #fff; outline: 2px solid #fff; outline-offset: 6px; color: #fff; background: rgba(176, 30, 35, .82); font-size: clamp(56px, 9vw, 120px); font-weight: 600; letter-spacing: 0.16em; line-height: 1; text-transform: uppercase; box-shadow: 0 10px 40px rgba(0,0,0,.35); pointer-events: none; }
+.property__note { margin-top: 20px; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
 
 /* ---------- Home page: about ---------- */
 .about { display: grid; grid-template-columns: 360px 1fr; gap: 72px; align-items: center; }
