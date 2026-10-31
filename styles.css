@@ -162,7 +162,6 @@ p { margin: 0 0 1em; }
 .property__media img { width: 100%; height: 100%; object-fit: cover; transition: transform 1s var(--ease); }
 .property:hover .property__media img { transform: scale(1.04); }
 .tag { position: absolute; top: 18px; left: 18px; background: #fff; color: var(--ink); font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; padding: 8px 14px; }
-.tag--sold { background: var(--ink); color: #fff; }
 .property__body { padding: 48px 44px; display: flex; flex-direction: column; justify-content: center; }
 .property__addr { font-size: clamp(22px, 2.4vw, 32px); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500; color: var(--ink); line-height: 1.2; }
 .property__city { font-size: 13px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--muted); margin-top: 8px; }
@@ -170,8 +169,10 @@ p { margin: 0 0 1em; }
 .specs { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .specs b { font-weight: 500; color: var(--ink); margin-right: 4px; }
 .property__link { margin-top: 28px; width: max-content; }
-.property--sold:hover .property__media img { transform: none; }
-.stamp { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-14deg); padding: 0.12em 0.5em 0.1em; border: 0.09em solid #fff; outline: 2px solid #fff; outline-offset: 6px; color: #fff; background: rgba(176, 30, 35, .82); font-size: clamp(56px, 9vw, 120px); font-weight: 600; letter-spacing: 0.16em; line-height: 1; text-transform: uppercase; box-shadow: 0 10px 40px rgba(0,0,0,.35); pointer-events: none; }
+.stamp { display: inline-block; transform: rotate(-12deg); padding: 0.14em 0.5em 0.1em; border: 0.08em solid #fff; outline: 2px solid rgba(255,255,255,.9); outline-offset: 5px; color: #fff; background: rgba(176, 30, 35, .78); font-size: clamp(30px, 4vw, 52px); font-weight: 600; letter-spacing: 0.18em; line-height: 1; text-transform: uppercase; box-shadow: 0 8px 30px rgba(0,0,0,.3); pointer-events: none; }
+.property__media .stamp { position: absolute; top: 24px; right: 24px; transform: rotate(-10deg); transform-origin: center; }
+.stamp--hero { font-size: clamp(30px, 4.5vw, 60px); margin-bottom: 36px; }
+.overview__sold { font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--muted); }
 .property__note { margin-top: 20px; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
 
 /* ---------- Home page: about ---------- */
@@ -242,4 +243,8 @@ body.no-scroll { overflow: hidden; }
   .lightbox__stage { padding: 0 8px; }
   .lightbox__arrow { width: 40px; height: 40px; }
   .lightbox__arrow--prev { left: 6px; } .lightbox__arrow--next { right: 6px; }
+}
+
+@media (max-width: 600px) {
+  .property__media .stamp { font-size: 24px; top: 16px; right: 16px; }
 }
