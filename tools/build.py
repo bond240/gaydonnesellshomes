@@ -3,11 +3,13 @@
 Run from the site folder:  python3 tools/build.py
 Edit AGENT / LISTINGS, re-run, upload the site folder. Output is plain static HTML."""
 import html, os, pathlib
+from urllib.parse import quote
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOMAIN = "https://gaydonnesellshomes.com"
 SITE_TITLE = "Gaydonne Sells Homes"           # browser tab title   # used for Facebook previews
 FORM_ACTION = "https://formspree.io/f/YOUR_FORM_ID"   # replace with your Formspree form id
+FORM_READY = "YOUR_FORM_ID" not in FORM_ACTION        # until then the contact section shows call / text / email buttons instead of a form
 
 AGENT = {
     "name": "Gaydonne Nusz",
@@ -22,7 +24,7 @@ AGENT = {
     "bio": ["Gaydonne Nusz is a REALTOR® with ShowOKC Real Estate and has spent 12 years helping Oklahomans buy and sell homes across the Oklahoma City metro, from Yukon, Mustang, and Edmond to Norman, Midwest City, and the surrounding communities.",
             "Her work covers single-family homes, first-time buyers, relocations, investment and farm property, land, new construction, and luxury homes, and she is recognized by the Oklahoma Housing Finance Agency as a Blue Ribbon Agent. Clients consistently recommend her for a calm, straightforward process from first showing to closing."],
     "stats": [("12", "Years experience"), ("60+", "Homes sold"), ("100%", "Client recommended")],
-    "socials": [("Facebook", "https://www.facebook.com/nuszrealty"), ("Instagram", "#"), ("LinkedIn", "#"), ("Zillow", "#")],   # replace # with links
+    "socials": [("Facebook", "https://www.facebook.com/nuszrealty")],   # add more as ("Instagram", "https://..."); only real links go here
 }
 
 # Photo order + captions for the Norman house (file numbers in images/norman)
@@ -87,6 +89,28 @@ def nav(rel, links, solid=False):
 
 def contact(rel, subject, sms_body):
     a = AGENT
+    if FORM_READY:
+        form_html = f'''<!-- Posts to Formspree. Create a free form at https://formspree.io and replace YOUR_FORM_ID in tools/build.py -->
+      <form class="form" action="{FORM_ACTION}" method="POST">
+        <input type="hidden" name="_subject" value="{E(subject)}">
+        <div class="form__row"><input type="text" name="first_name" placeholder="First *" required><input type="text" name="last_name" placeholder="Last *" required></div>
+        <input type="email" name="email" placeholder="Email *" required>
+        <input type="tel" name="phone" placeholder="Phone #">
+        <textarea name="message" rows="5" placeholder="Your message"></textarea>
+        <div class="form__actions">
+          <button class="btn" type="submit">Send Inquiry</button>
+          <a class="btn btn--outline" href="sms:{a["tel"]}?&body={sms_body}">Schedule a Tour</a>
+        </div>
+        <div class="form__note">Your information is never shared.</div>
+      </form>'''
+    else:
+        # No form service yet: never show a form that can't deliver. Offer direct ways to reach her.
+        form_html = f'''<p class="contact__intro">Call, text or email and Gaydonne will get right back to you.</p>
+      <div class="contact__buttons">
+        <a class="btn btn--block" href="tel:{a["tel"]}">Call {E(a["phone"])}</a>
+        <a class="btn btn--outline btn--block" href="sms:{a["tel"]}?&body={sms_body}">Send a Text</a>
+        <a class="btn btn--outline btn--block" href="mailto:{a["email"]}?subject={quote(subject)}">Send an Email</a>
+      </div>'''
     return f'''<section class="section section--topo" id="contact">
   <div class="container contact">
     <div class="agent">
@@ -101,26 +125,14 @@ def contact(rel, subject, sms_body):
     </div>
     <div>
       <h2 class="h2">Get in touch</h2>
-      <!-- Posts to Formspree. Create a free form at https://formspree.io and replace YOUR_FORM_ID in tools/build.py -->
-      <form class="form" action="{FORM_ACTION}" method="POST">
-        <input type="hidden" name="_subject" value="{E(subject)}">
-        <div class="form__row"><input type="text" name="first_name" placeholder="First *" required><input type="text" name="last_name" placeholder="Last *" required></div>
-        <input type="email" name="email" placeholder="Email *" required>
-        <input type="tel" name="phone" placeholder="Phone #">
-        <textarea name="message" rows="5" placeholder="Your message"></textarea>
-        <div class="form__actions">
-          <button class="btn" type="submit">Send Inquiry</button>
-          <a class="btn btn--outline" href="sms:{a["tel"]}?&body={sms_body}">Schedule a Tour</a>
-        </div>
-        <div class="form__note">Your information is never shared.</div>
-      </form>
+      {form_html}
     </div>
   </div>
 </section>'''
 
 def footer(rel):
     a = AGENT
-    socials = "".join(f'<a href="{href}">{E(t)}</a>' for t, href in a["socials"])
+    socials = "".join(f'<a href="{href}">{E(t)}</a>' for t, href in a["socials"] if href.startswith("http"))
     return f'''<footer class="footer">
   <div class="container">
     <div class="footer__brand">

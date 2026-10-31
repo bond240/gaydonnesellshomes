@@ -70,8 +70,8 @@ hidden everywhere (the card, the stats bar, the page title and the Details table
 
 
 | Bio and the three stats | `AGENT["bio"]`, `AGENT["stats"]` |
-| Social links (`#`) | `AGENT["socials"]` |
-| `YOUR-DOMAIN.com`, `YOUR_FORM_ID` | `DOMAIN`, `FORM_ACTION` |
+| More social links (Instagram, LinkedIn, Zillow) | `AGENT["socials"]`; only links starting with http are shown |
+| `YOUR_FORM_ID` | `FORM_ACTION` |
 | Norman listing facts | pulled from public listing sites — confirm price, MLS #, details |
 
 ## Oklahoma advertising rule (brokerage ≥ 50% of the agent's name)
@@ -88,8 +88,9 @@ Kept everywhere the agent's name appears; keep the ratio if you change sizes in 
 
 ## Contact form
 
-The form posts to Formspree, which emails submissions. Sign up free at https://formspree.io,
-create a form, put its id in `FORM_ACTION`, rebuild. Call / Text / Email links work regardless.
+Until `FORM_ACTION` has a real Formspree id, the contact section shows Call / Text / Email buttons
+instead of a form, so nobody types a message that goes nowhere. To turn the form on: sign up free at
+https://formspree.io, create a form, put its id in `FORM_ACTION`, rebuild.
 
 ## Facebook / social sharing
 
