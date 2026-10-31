@@ -12,7 +12,7 @@ AGENT = {
     "name": "Gaydonne Nusz",
     "role": "REALTOR®",
     "brokerage": "ShowOKC Real Estate",
-    "brokerage_phone": "(405) 355-2489",
+    "brokerage_phone": "(405) 355-2489",   # printed inside the logo image; used only in its alt text
     "phone": "(405) 312-5905", "tel": "+14053125905",
     "email": "Gaydonne@GaydonneSellsHomes.com",
     "license": "Oklahoma License #170092",
@@ -92,7 +92,6 @@ def contact(rel, subject, sms_body):
       <a href="tel:{a["tel"]}">{E(a["phone"])}</a>
       <a href="mailto:{a["email"]}">{E(a["email"])}</a>
       <span>{E(a["license"])}</span>
-      <span>Office {E(a["brokerage_phone"])}</span>
     </div>
     <div>
       <h2 class="h2">Get in touch</h2>
@@ -122,7 +121,7 @@ def footer(rel):
       <span class="footer__name">{E(a["name"])}</span>
       <img class="footer__logo" src="{rel}images/brand/showokc-logo.png" alt="{E(a["brokerage"])}">
     </div>
-    <div class="footer__brokerage">{E(a["brokerage"])} · {E(a["brokerage_phone"])}</div>
+    <div class="footer__brokerage">{E(a["brokerage"])} · <a href="tel:{a["tel"]}">{E(a["phone"])}</a></div>
     <div class="footer__links"><a href="{rel}index.html#properties">Properties</a><a href="{rel}index.html#about">About</a><a href="{rel}index.html#contact">Contact</a>{socials}</div>
     <div class="footer__legal">© 2026 {E(a["name"])}, {E(a["role"])} · {E(a["brokerage"])} · {E(a["license"])}. Information deemed reliable but not guaranteed; buyer to verify all details including schools and square footage. REALTOR® is a registered trademark of the National Association of REALTORS®.
       <div class="eho"><svg viewBox="0 0 24 24"><path d="m3 11 9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M8 14h8M8 17h8"/></svg> Equal Housing Opportunity</div></div>

@@ -146,6 +146,7 @@ p { margin: 0 0 1em; }
 .footer__name { font-size: 18px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--ink); font-weight: 500; }
 .footer__logo { height: 44px; width: auto; } /* wordmark ~ 9px+ ... sized with text line below for the 50% rule */
 .footer__brokerage { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); font-weight: 500; }
+.footer__brokerage a { color: inherit; }
 .footer__links { display: flex; justify-content: center; gap: 22px; margin: 10px 0 18px; flex-wrap: wrap; }
 .footer__links a { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink); }
 .footer__legal { max-width: 900px; margin: 0 auto; }
