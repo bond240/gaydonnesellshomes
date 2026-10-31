@@ -28,8 +28,6 @@ AGENT = {
 # Photo order + captions for the Norman house (file numbers in images/norman)
 NORMAN_PHOTOS = [(3,"Front elevation"),(43,"Timber-framed entry"),(1,"Covered front porch"),(4,"Side elevation and deck"),(5,"Cedar deck"),(6,"Cedar deck"),(44,"Deck with tree canopy"),(45,"Deck overlooking the acreage"),(7,"Rear elevation"),(46,"Rear of the home under mature trees"),(8,"Front of the home from the drive"),(9,"Entry"),(10,"Kitchen and living area"),(11,"Open kitchen"),(12,"Kitchen island with vent hood"),(13,"Kitchen"),(14,"Farmhouse sink with window"),(15,"Kitchen cabinetry"),(16,"Range and cabinetry"),(17,"Built-in pantry"),(18,"Living room"),(19,"Living room fireplace"),(20,"Living room"),(21,"Living room with plantation shutters"),(22,"Living room"),(23,"Double-sided fireplace"),(24,"Dining room"),(25,"Second dining area"),(26,"Hallway"),(27,"Guest bath shower"),(28,"Guest bath vanity"),(29,"Marble-look walk-in shower"),(30,"Bedroom"),(31,"Bedroom"),(32,"Fireplace room"),(33,"Staircase"),(34,"Room with fireplace"),(35,"Bedroom"),(36,"Bedroom"),(37,"Bedroom"),(38,"Bedroom"),(39,"Walk-in closet"),(40,"Primary bath"),(41,"Primary bath double vanity"),(42,"Primary bath shower"),(2,"Aerial view"),(47,"Aerial of the 2.56 acres"),(48,"Aerial with circle drive"),(49,"Aerial")]
 
-PUMPKIN_PHOTOS = list(enumerate(['Front of the home', 'Front yard and two-car garage', 'Covered front entry', 'Living room with fireplace', 'Kitchen and living area', 'Entry', 'Entry hall', 'Dining area', 'Kitchen island', 'Kitchen', 'Kitchen', 'Kitchen with stainless appliances', 'Kitchen sink and range', 'Kitchen', 'Dining room', 'Dining room', 'Living room', 'Hall bath vanity', 'Hall bath', 'Hall bath shower', 'Hall bath', 'Bedroom', 'Bedroom', 'Bedroom built-ins', 'Bedroom', 'Primary bedroom', 'Primary bedroom', 'Primary bath', 'Primary shower', 'Primary shower', 'Bedroom', 'Bedroom built-ins', 'Bedroom', 'Hall storage', 'Living room', 'Living room', 'Living room with French doors', 'Fenced backyard', 'Storage shed'], 1))
-
 LISTINGS = [
   {
     "slug": "4311-se-37th-st-norman",
@@ -49,25 +47,6 @@ LISTINGS = [
     "details": [("Price","$425,000"),("Status","Active"),("Property type","Single-family on acreage"),("Year built","1977, fully remodeled"),("Interior","2,280 sq ft"),("Lot","2.56 acres"),("Bedrooms / Baths","3 / 2"),("Schools","Norman Public Schools"),("MLS #","1255446")],
     "video": None, "tour": None, "floorplan": None,     # add URLs to show Video / 3D Tour / Floor Plans
     "documents": [],                                     # e.g. [("Brochure", "docs/4311-brochure.pdf")]
-  },
-  {
-    "slug": "408-pumpkin-cir-yukon",
-    "path": "408",                        # gaydonnesellshomes.com/408
-    "sold": True, "sold_note": "Represented the buyer · Sold August 2026",
-    "street": "408 Pumpkin Cir", "city": "Yukon", "state": "OK", "zip": "73099",
-    "price": "$225,000", "status": "Sold",   # price is never shown while "sold" is True
-    "beds": "3", "baths": "2", "sqft": "1,278", "lot": "9,004 sq ft",
-    "hero": "images/pumpkin/hero-kitchen.jpg",     # photo 05 (kitchen into living room), upscaled to 1920 px
-    "card": "images/pumpkin/05.jpg",
-    "photos": [{"full": f"images/pumpkin/{n:02d}.jpg", "thumb": f"images/pumpkin/thumbs/{n:02d}.jpg", "alt": c} for n, c in PUMPKIN_PHOTOS],
-    "mosaic": [0, 11, 36, 27, 37],
-    "overview": [
-      "Tucked into a quiet cul-de-sac in Yukon's WoodRun addition, this 1977 brick ranch was remodeled top to bottom. New flooring throughout, fresh paint inside and out, and new light fixtures and ceiling fans give the home a clean, bright feel.",
-      "The kitchen is the centerpiece, with white cabinetry and new hardware, granite counters, a peninsula island, and stainless steel appliances. The living room pairs a painted-brick gas-log fireplace with built-in shelving and French doors to the backyard. Both full baths were redone with granite vanities and white tile showers.",
-      "The updates go well past the surface: new plumbing and electrical, HVAC and furnace from 2023, freshly cleaned ductwork, and foundation piers and wall ties added in June 2026. Outside, a new stockade fence wraps the large backyard, with a remodeled storage shed and a two-car garage."],
-    "features": ["Cul-de-Sac Lot","Complete Remodel","Granite Counters","Stainless Appliances","Peninsula Island","New Flooring","New Plumbing & Electrical","HVAC & Furnace 2023","Foundation Piers 2026","Gas-Log Fireplace","Built-In Shelving","French Doors","Two-Car Garage","New Stockade Fence","Storage Shed","Mustang Schools"],
-    "details": [("Price","$225,000"),("Status","Sold August 21, 2026"),("Property type","Single-family"),("Year built","1977, fully remodeled"),("Interior","1,278 sq ft"),("Lot","9,004 sq ft, cul-de-sac"),("Bedrooms / Baths","3 / 2"),("Garage","2-car"),("Schools","Mustang Public Schools"),("Gaydonne represented","The buyer"),("MLS #","1238645")],
-    "video": None, "tour": None, "floorplan": None, "documents": [],
   },
 ]
 

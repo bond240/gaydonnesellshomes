@@ -60,7 +60,7 @@ To retire a home, remove it from `LISTINGS` and delete its file from `listings/`
 Set `"sold": True` and a `"sold_note"` (for example `"Sold October 2026"`) on its entry and rebuild.
 The home keeps its page and photos, gets a SOLD stamp on its card and page hero, and its price is
 hidden everywhere (the card, the stats bar, the page title and the Details table). The page's
-"Schedule a Tour" tab becomes "Get in touch". 408 Pumpkin Cir is the example.
+"Schedule a Tour" tab becomes "Get in touch".
 
 ## Still placeholder
 
