@@ -47,21 +47,6 @@ LISTINGS = [
     "video": None, "tour": None, "floorplan": None,     # add URLs to show Video / 3D Tour / Floor Plans
     "documents": [],                                     # e.g. [("Brochure", "docs/4311-brochure.pdf")]
   },
-  {
-    "slug": "4800-oak-tree-lane-edmond",
-    "street": "4800 Oak Tree Lane", "city": "Edmond", "state": "OK", "zip": "73025",
-    "price": "$1,875,000", "status": "For Sale",
-    "beds": "5", "baths": "5.5", "sqft": "5,940", "lot": "5.1 acres",
-    "hero": "images/estate2-1.svg",
-    "photos": [{"full": f"images/estate2-{i}.svg", "thumb": f"images/estate2-{i}.svg", "alt": c} for i, c in enumerate(["Exterior","Great room","Chef's kitchen","Primary suite","Acreage and barn","Aerial view"], 1)],
-    "mosaic": [0, 1, 2, 3, 4],
-    "overview": [
-      "Placeholder description. A tree-lined private drive leads to this modern farmhouse estate on just over five acres in the Deer Creek corridor. Built in 2019, the home blends vaulted, beamed ceilings and walls of glass with a warm palette of white oak, limestone, and hand-forged iron.",
-      "The open great room flows to a chef's kitchen with a 12-foot island, hidden scullery, and a walk-in pantry. The primary suite occupies its own wing with a fireplace, spa bath, and direct access to the pool terrace. Grounds include a heated pool and spa, outdoor kitchen, a 2,400 sq ft barn, fenced pasture, and a stocked pond."],
-    "features": ["5.1 Private Acres","Built 2019","Chef's Kitchen","Scullery","Primary Wing","Spa Bath","Storm-Safe Theater","Heated Pool & Spa","Outdoor Kitchen","2,400 Sq Ft Barn","Fenced Pasture","Stocked Pond","Geothermal HVAC","Deer Creek Schools"],
-    "details": [("Price","$1,875,000"),("Status","Active"),("Property type","Single-family estate on acreage"),("Year built","2019"),("Interior","5,940 sq ft"),("Lot","5.1 acres, fully fenced"),("Garage","3-car attached + barn parking"),("Schools","Deer Creek Public Schools"),("MLS #","0000000")],
-    "video": None, "tour": None, "floorplan": None, "documents": [],
-  },
 ]
 
 E = html.escape

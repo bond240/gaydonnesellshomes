@@ -22,7 +22,6 @@ site/
     norman/NN.jpg, norman/thumbs/  ← 4311 SE 37th St photos (HDR-treated) + 320 px thumbnails
     brand/showokc-logo.png         ← brokerage logo, transparent, for light backgrounds
     brand/showokc-logo-white.png   ← white-text version for dark backgrounds
-    agent.svg, estate2-*.svg       ← placeholders still to replace
 ```
 
 ## Editing content
@@ -65,7 +64,6 @@ To retire a home, remove it from `LISTINGS` and delete its file from `listings/`
 
 | Bio and the three stats | `AGENT["bio"]`, `AGENT["stats"]` |
 | Social links (`#`) | `AGENT["socials"]` |
-| Second home (4800 Oak Tree Lane) | placeholder listing and photos |
 | `YOUR-DOMAIN.com`, `YOUR_FORM_ID` | `DOMAIN`, `FORM_ACTION` |
 | Norman listing facts | pulled from public listing sites — confirm price, MLS #, details |
 
