@@ -5,7 +5,8 @@ Edit AGENT / LISTINGS, re-run, upload the site folder. Output is plain static HT
 import html, os, pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-DOMAIN = "https://gaydonnesellshomes.com"   # used for Facebook previews
+DOMAIN = "https://gaydonnesellshomes.com"
+SITE_TITLE = "Gaydonne Sells Homes"           # browser tab title   # used for Facebook previews
 FORM_ACTION = "https://formspree.io/f/YOUR_FORM_ID"   # replace with your Formspree form id
 
 AGENT = {
@@ -56,7 +57,7 @@ LISTINGS = [
     "street": "408 Pumpkin Cir", "city": "Yukon", "state": "OK", "zip": "73099",
     "price": "$225,000", "status": "Sold",   # price is never shown while "sold" is True
     "beds": "3", "baths": "2", "sqft": "1,278", "lot": "9,004 sq ft",
-    "hero": "images/pumpkin/hero.jpg",     # photo 02, upscaled to 1920 px
+    "hero": "images/pumpkin/hero.jpg",     # photo 01 (realtor.com main photo), upscaled to 1920 px
     "card": "images/pumpkin/01.jpg",
     "photos": [{"full": f"images/pumpkin/{n:02d}.jpg", "thumb": f"images/pumpkin/thumbs/{n:02d}.jpg", "alt": c} for n, c in PUMPKIN_PHOTOS],
     "mosaic": [0, 11, 36, 27, 37],
@@ -85,6 +86,11 @@ REDIRECT = """<!doctype html>
 </head><body><a href="{href}">This listing has moved here.</a></body></html>
 """
 HEAD_FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com">\n  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">'
+
+def icons(rel):
+    return (f'<link rel="icon" href="{rel}favicon.svg" type="image/svg+xml">\n'
+            f'  <link rel="icon" href="{rel}favicon-32.png" sizes="32x32" type="image/png">\n'
+            f'  <link rel="apple-touch-icon" href="{rel}apple-touch-icon.png">')
 
 def nav(rel, links, solid=False):
     a = AGENT
@@ -181,7 +187,8 @@ def listing_page(L):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{E(addr)} | {E(price)} | {E(a["name"])}</title>
+  <title>{E(L["street"])} | {E(SITE_TITLE)}</title>
+  {icons(rel)}
   <meta name="description" content="{E(L["beds"])} bed, {E(L["baths"])} bath, {E(L["sqft"])} sq ft on {E(L["lot"])} in {E(L["city"])}, {E(L["state"])}. {E(L["overview"][0][:140])}…">
   <meta name="theme-color" content="#ffffff">
   <meta property="og:type" content="website">
@@ -297,7 +304,8 @@ def index_page():
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{E(a["name"])} | {E(a["brokerage"])} | Homes for Sale in Oklahoma</title>
+  <title>{E(SITE_TITLE)}</title>
+  {icons(rel)}
   <meta name="description" content="Homes for sale across the Oklahoma City metro, presented by {E(a["name"])}, {E(a["role"])} with {E(a["brokerage"])}.">
   <meta name="theme-color" content="#ffffff">
   <meta property="og:type" content="website">
