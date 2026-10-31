@@ -18,7 +18,7 @@ site/
   styles.css                       ← all styling
   site.js                          ← nav, mobile menu, lightbox, share
   images/
-    hero.jpg                       ← home-page hero (Norman photo 03, upscaled to 1920 px)
+    hero-living.jpg                ← home-page hero (Norman photo 21, living room, upscaled to 1920 px)
     norman/NN.jpg, norman/thumbs/  ← 4311 SE 37th St photos (HDR-treated) + 320 px thumbnails
     brand/showokc-logo.png         ← brokerage logo, transparent, for light backgrounds
     brand/showokc-logo-white.png   ← white-text version for dark backgrounds
