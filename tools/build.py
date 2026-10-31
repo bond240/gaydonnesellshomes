@@ -57,8 +57,8 @@ LISTINGS = [
     "street": "408 Pumpkin Cir", "city": "Yukon", "state": "OK", "zip": "73099",
     "price": "$225,000", "status": "Sold",   # price is never shown while "sold" is True
     "beds": "3", "baths": "2", "sqft": "1,278", "lot": "9,004 sq ft",
-    "hero": "images/pumpkin/hero-front.jpg",     # photo 01 (realtor.com main photo), upscaled to 1920 px
-    "card": "images/pumpkin/card-front.jpg",  # realtor.com main photo (same as photo 01)
+    "hero": "images/pumpkin/hero-kitchen.jpg",     # photo 05 (kitchen into living room), upscaled to 1920 px
+    "card": "images/pumpkin/05.jpg",
     "photos": [{"full": f"images/pumpkin/{n:02d}.jpg", "thumb": f"images/pumpkin/thumbs/{n:02d}.jpg", "alt": c} for n, c in PUMPKIN_PHOTOS],
     "mosaic": [0, 11, 36, 27, 37],
     "overview": [
