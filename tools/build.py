@@ -37,7 +37,7 @@ LISTINGS = [
     "street": "4311 SE 37th St", "city": "Norman", "state": "OK", "zip": "73072",
     "price": "$425,000", "status": "New Listing",
     "beds": "3", "baths": "2", "sqft": "2,280", "lot": "2.56 acres",
-    "hero": "images/norman/hero.jpg",      # page hero: photo 11 (kitchen), upscaled to 1920 px
+    "hero": "images/norman/hero-kitchen-hq.jpg",   # page hero: kitchen and living room, enhanced copy supplied by Jimmy
     "card": "images/norman/03.jpg",       # thumbnail on the home page
     "photos": [{"full": f"images/norman/{n:02d}.jpg", "thumb": f"images/norman/thumbs/{n:02d}.jpg", "alt": c} for n, c in NORMAN_PHOTOS],
     "mosaic": [0, 14, 21, 1, 43],      # indexes into photos: first is the large tile
