@@ -1,6 +1,19 @@
 // Gaydonne CRM dashboard. Static SPA with hash routing, Supabase JS client,
 // no build step. Phone-first.
 
+// Escape hatch: visiting /portal/?reset wipes every Supabase localStorage key
+// and reloads. Use when the browser is stuck on an invalid session and nav
+// stops responding ("blank page with nav at the top").
+if (new URLSearchParams(location.search).has("reset")) {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("sb-") || k.includes("supabase")) localStorage.removeItem(k);
+    }
+  } catch (_) {}
+  location.replace(location.pathname);
+  throw new Error("resetting");
+}
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
