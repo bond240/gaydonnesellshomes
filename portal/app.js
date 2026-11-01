@@ -427,6 +427,10 @@ async function renderNewLead() {
                   h("option", { value: "true" }, "Yes"),
                   h("option", { value: "false" }, "No")),
     timeline:   h("input", { placeholder: "e.g. 30-60 days" }),
+    street:     h("input", { autocomplete: "street-address" }),
+    city:       h("input", { autocomplete: "address-level2" }),
+    state:      h("input", { autocomplete: "address-level1", maxlength: 2 }),
+    zip:        h("input", { autocomplete: "postal-code", inputmode: "numeric" }),
     notes:      h("textarea", { placeholder: "Notes" }),
   };
   const field = (lbl, el) => h("div", {}, h("label", {}, lbl), el);
@@ -453,6 +457,10 @@ async function renderNewLead() {
           price_max:  f.price_max.value ? Number(f.price_max.value) : null,
           preapproved: f.preapproved.value === "" ? null : f.preapproved.value === "true",
           timeline:   f.timeline.value.trim() || null,
+          street:     f.street.value.trim() || null,
+          city:       f.city.value.trim()   || null,
+          state:      f.state.value.trim().toUpperCase() || null,
+          zip:        f.zip.value.trim()    || null,
         };
         const { data, error } = await sb.from("leads").insert(payload).select("id").single();
         if (error) { toast(error.message); return; }
@@ -473,7 +481,12 @@ async function renderNewLead() {
     field("Price max",    f.price_max),
     field("Pre-approved", f.preapproved),
     field("Timeline",     f.timeline),
-    field("Notes",        f.notes),
+    h("h3", { style: "margin-top:1rem" }, "Current address"),
+    field("Street", f.street),
+    field("City",   f.city),
+    field("State",  f.state),
+    field("ZIP",    f.zip),
+    field("Notes",  f.notes),
     h("button", { class: "btn", type: "submit" }, "Save lead"),
   );
   view.append(form);
@@ -593,10 +606,14 @@ async function renderLeadDetail(id) {
 
   // Contact (editable) ---------------------------------------------------
   const c = {
-    first_name: h("input", { value: esc(lead.first_name) }),
-    last_name:  h("input", { value: esc(lead.last_name) }),
-    email:      h("input", { type: "email", value: esc(lead.email) }),
-    phone:      h("input", { type: "tel",   value: esc(lead.phone) }),
+    first_name: h("input", { value: esc(lead.first_name), autocomplete: "given-name" }),
+    last_name:  h("input", { value: esc(lead.last_name),  autocomplete: "family-name" }),
+    email:      h("input", { type: "email", value: esc(lead.email), autocomplete: "email" }),
+    phone:      h("input", { type: "tel",   value: esc(lead.phone), autocomplete: "tel" }),
+    street:     h("input", { value: esc(lead.street), autocomplete: "street-address", placeholder: "Street" }),
+    city:       h("input", { value: esc(lead.city),   autocomplete: "address-level2",  placeholder: "City" }),
+    state:      h("input", { value: esc(lead.state),  autocomplete: "address-level1",  placeholder: "State", maxlength: 2 }),
+    zip:        h("input", { value: esc(lead.zip),    autocomplete: "postal-code",     placeholder: "ZIP",   inputmode: "numeric" }),
   };
   const contactForm = h(
     "form",
@@ -613,6 +630,10 @@ async function renderLeadDetail(id) {
           first_name: first,
           last_name:  c.last_name.value.trim() || null,
           email, phone,
+          street: c.street.value.trim() || null,
+          city:   c.city.value.trim()   || null,
+          state:  c.state.value.trim().toUpperCase() || null,
+          zip:    c.zip.value.trim()    || null,
         }).eq("id", id);
         if (error) toast(error.message);
         else { toast("Contact saved"); route(); }
@@ -623,7 +644,12 @@ async function renderLeadDetail(id) {
     h("label", {}, "Last name"),  c.last_name,
     h("label", {}, "Email"), c.email,
     h("label", {}, "Phone"), c.phone,
-    h("button", { class: "btn outline", type: "submit" }, "Save contact"),
+    h("h3", { style: "margin-top:1rem" }, "Current address"),
+    h("label", {}, "Street"), c.street,
+    h("label", {}, "City"),   c.city,
+    h("label", {}, "State"),  c.state,
+    h("label", {}, "ZIP"),    c.zip,
+    h("button", { class: "btn outline", type: "submit", style: "margin-top:0.5rem" }, "Save contact"),
   );
   if (lead.source || lead.source_page) {
     contactForm.append(h("p", { class: "muted hint" },
