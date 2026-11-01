@@ -136,22 +136,28 @@ function renderSignIn() {
     type: "password", placeholder: "Password",
     autocomplete: "current-password", required: true,
   });
+  const err = h("p", { class: "muted", style: "color:#b00020;min-height:1.1em" });
   const form = h(
     "form",
     {
       class: "stack",
       onsubmit: async (e) => {
         e.preventDefault();
+        err.textContent = "";
         const { error } = await sb.auth.signInWithPassword({
           email: email.value.trim(),
           password: password.value,
         });
-        if (error) toast(error.message);
+        if (error) {
+          err.textContent = error.message;
+          console.error("sign-in failed", error);
+        }
       },
     },
     h("h1", {}, "Sign in"),
     email,
     password,
+    err,
     h("button", { class: "btn block", type: "submit" }, "Sign in"),
   );
   view.append(h("div", { class: "signin" }, form));
