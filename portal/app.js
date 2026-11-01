@@ -121,11 +121,19 @@ function updateTabs() {
 
 window.addEventListener("hashchange", route);
 sb.auth.onAuthStateChange(route);
-signOutBtn.addEventListener("click", async () => {
-  await sb.auth.signOut({ scope: "local" }).catch(() => {});
-  location.hash = "#/";
-  location.reload();
-});
+function hardSignOut() {
+  // Clear every supabase-js auth key, synchronous and uncancellable.
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("sb-") || k.includes("supabase")) localStorage.removeItem(k);
+    }
+  } catch (_) {}
+  // Kick off the SDK sign-out too, but don't wait for it.
+  try { sb.auth.signOut({ scope: "local" }); } catch (_) {}
+  // Force a top-level navigation (not just a hash change) to the portal root.
+  location.href = location.pathname;
+}
+signOutBtn.addEventListener("click", hardSignOut);
 
 // --- views ----------------------------------------------------------------
 
@@ -450,6 +458,13 @@ async function renderSettings() {
     h("button", { class: "btn outline", type: "submit" }, "Update password"),
   );
   view.append(pwForm);
+
+  // Sign out ---------------------------------------------------------
+  view.append(h("h2", {}, "Session"));
+  view.append(h("button", {
+    class: "btn", style: "margin-top:0.5rem",
+    onclick: hardSignOut,
+  }, "Sign out"));
 }
 
 async function renderLeadDetail(id) {
