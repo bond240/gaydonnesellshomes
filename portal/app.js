@@ -85,6 +85,7 @@ const routes = [
   [/^\/$/,            renderToday],
   [/^\/leads$/,       renderLeads],
   [/^\/new$/,         renderNewLead],
+  [/^\/settings$/,    renderSettings],
   [/^\/lead\/(.+)$/,  renderLeadDetail],
 ];
 
@@ -121,9 +122,9 @@ function updateTabs() {
 window.addEventListener("hashchange", route);
 sb.auth.onAuthStateChange(route);
 signOutBtn.addEventListener("click", async () => {
-  await sb.auth.signOut({ scope: "local" });
+  await sb.auth.signOut({ scope: "local" }).catch(() => {});
   location.hash = "#/";
-  route();
+  location.reload();
 });
 
 // --- views ----------------------------------------------------------------
@@ -379,6 +380,76 @@ async function renderNewLead() {
     h("button", { class: "btn", type: "submit" }, "Save lead"),
   );
   view.append(form);
+}
+
+async function renderSettings() {
+  view.append(h("h1", {}, "Settings"));
+
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) { view.append(h("p", { class: "muted" }, "Not signed in.")); return; }
+
+  view.append(h("p", { class: "muted" }, "Signed in as " + user.email));
+
+  // Change email -------------------------------------------------------
+  const emailInput = h("input", { type: "email", value: user.email, required: true, autocomplete: "email" });
+  const emailMsg = h("p", { style: "min-height:1.1em;color:#b00020" });
+  const emailForm = h(
+    "form",
+    {
+      class: "stack",
+      onsubmit: async (e) => {
+        e.preventDefault();
+        emailMsg.textContent = "";
+        emailMsg.style.color = "#b00020";
+        const newEmail = emailInput.value.trim();
+        if (!newEmail || newEmail === user.email) return;
+        const { error } = await sb.auth.updateUser({ email: newEmail });
+        if (error) {
+          emailMsg.textContent = error.message;
+        } else {
+          emailMsg.style.color = "var(--muted)";
+          emailMsg.textContent = "Check " + newEmail + " for a confirmation link.";
+        }
+      },
+    },
+    h("h2", {}, "Change email"),
+    h("label", {}, "New email"), emailInput,
+    emailMsg,
+    h("button", { class: "btn outline", type: "submit" }, "Update email"),
+  );
+  view.append(emailForm);
+
+  // Change password ----------------------------------------------------
+  const pw1 = h("input", { type: "password", placeholder: "New password", required: true, minlength: 8, autocomplete: "new-password" });
+  const pw2 = h("input", { type: "password", placeholder: "Confirm new password", required: true, minlength: 8, autocomplete: "new-password" });
+  const pwMsg = h("p", { style: "min-height:1.1em;color:#b00020" });
+  const pwForm = h(
+    "form",
+    {
+      class: "stack",
+      onsubmit: async (e) => {
+        e.preventDefault();
+        pwMsg.textContent = "";
+        pwMsg.style.color = "#b00020";
+        if (pw1.value !== pw2.value) { pwMsg.textContent = "Passwords don't match"; return; }
+        if (pw1.value.length < 8)   { pwMsg.textContent = "At least 8 characters"; return; }
+        const { error } = await sb.auth.updateUser({ password: pw1.value });
+        if (error) {
+          pwMsg.textContent = error.message;
+        } else {
+          pwMsg.style.color = "var(--muted)";
+          pwMsg.textContent = "Password updated.";
+          pw1.value = ""; pw2.value = "";
+        }
+      },
+    },
+    h("h2", {}, "Change password"),
+    h("label", {}, "New password"), pw1,
+    h("label", {}, "Confirm"), pw2,
+    pwMsg,
+    h("button", { class: "btn outline", type: "submit" }, "Update password"),
+  );
+  view.append(pwForm);
 }
 
 async function renderLeadDetail(id) {
