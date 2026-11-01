@@ -104,7 +104,22 @@ const routes = [
 ];
 
 async function route() {
-  const session = (await sb.auth.getSession()).data.session;
+  let session;
+  try {
+    session = await Promise.race([
+      sb.auth.getSession().then((r) => r.data.session),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("session_timeout")), 5000)),
+    ]);
+  } catch (_) {
+    // Auth state is wedged — wipe local tokens and reload fresh.
+    try {
+      for (const k of Object.keys(localStorage)) {
+        if (k.startsWith("sb-") || k.includes("supabase")) localStorage.removeItem(k);
+      }
+    } catch (__) {}
+    location.replace(location.pathname);
+    return;
+  }
   signOutBtn.hidden = !session;
   navEl.hidden = !session;
   if (!session) return renderSignIn();
@@ -408,7 +423,10 @@ async function renderNewLead() {
 async function renderSettings() {
   view.append(h("h1", {}, "Settings"));
 
-  const { data: { user } } = await sb.auth.getUser();
+  // Use the cached session's user instead of hitting /auth/v1/user, which
+  // can hang on a bad token and leave the page blank.
+  const { data: { session } } = await sb.auth.getSession();
+  const user = session?.user;
   if (!user) { view.append(h("p", { class: "muted" }, "Not signed in.")); return; }
 
   view.append(h("p", { class: "muted" }, "Signed in as " + user.email));
