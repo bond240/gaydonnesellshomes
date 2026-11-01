@@ -239,6 +239,19 @@ async function renderToday() {
     for (const l of overdue) view.append(leadCard(l, { overdue: true }));
   }
 
+  // Upcoming dates (30 days: birthdays, anniversaries, closings) ------
+  const upcoming = await fetchUpcomingDates(30);
+  if (upcoming.length) {
+    view.append(h("h2", {}, "Dates coming up"));
+    for (const u of upcoming) {
+      view.append(h("a", { class: "card", href: `#/lead/${u.lead_id}` },
+        h("span", { class: "badge" }, u.kind),
+        h("span", { class: "name" }, u.name),
+        h("div", { class: "meta" }, u.when),
+      ));
+    }
+  }
+
   view.append(h("h2", {}, "New & recent"));
   const { data: recent } = await sb
     .from("leads")
@@ -247,6 +260,52 @@ async function renderToday() {
     .order("created_at", { ascending: false })
     .limit(10);
   for (const l of recent ?? []) view.append(leadCard(l));
+}
+
+async function fetchUpcomingDates(daysAhead) {
+  const [{ data: leads }, { data: people }] = await Promise.all([
+    sb.from("leads").select("id, first_name, last_name, birthday, anniversary, closing_date").eq("archived", false),
+    sb.from("people").select("lead_id, name, relationship, birthday"),
+  ]);
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(start.getTime() + daysAhead * 86400000);
+  const items = [];
+  const nameOf = (l) => [l.first_name, l.last_name].filter(Boolean).join(" ");
+  const leadById = new Map((leads ?? []).map((l) => [l.id, l]));
+
+  const addRecurring = (dateStr, kind, leadId, display) => {
+    if (!dateStr) return;
+    const [, m, d] = dateStr.split("-").map(Number);
+    for (let yr = start.getFullYear(); yr <= end.getFullYear(); yr++) {
+      const occ = new Date(yr, m - 1, d);
+      if (occ >= start && occ <= end) {
+        items.push({ when: occ, display: fmtDate(occ.toISOString()), kind, lead_id: leadId, name: display });
+        return;
+      }
+    }
+  };
+  const addOnce = (dateStr, kind, leadId, display) => {
+    if (!dateStr) return;
+    const occ = new Date(dateStr + "T00:00:00");
+    if (occ >= start && occ <= end) {
+      items.push({ when: occ, display: fmtDate(occ.toISOString()), kind, lead_id: leadId, name: display });
+    }
+  };
+
+  for (const l of leads ?? []) {
+    addRecurring(l.birthday,    "BIRTHDAY",    l.id, nameOf(l));
+    addRecurring(l.anniversary, "ANNIVERSARY", l.id, nameOf(l));
+    addOnce(l.closing_date,     "CLOSING",     l.id, nameOf(l));
+  }
+  for (const p of people ?? []) {
+    const l = leadById.get(p.lead_id);
+    if (!l) continue;
+    const label = `${p.name}${p.relationship ? " (" + p.relationship + ")" : ""} — ${nameOf(l)}`;
+    addRecurring(p.birthday, "BIRTHDAY", l.id, label);
+  }
+  items.sort((a, b) => a.when - b.when);
+  return items.map((i) => ({ ...i, when: i.display }));
 }
 
 function leadCard(l, { overdue = false } = {}) {
@@ -501,9 +560,10 @@ async function renderSettings() {
 }
 
 async function renderLeadDetail(id) {
-  const [{ data: lead, error }, { data: acts }] = await Promise.all([
+  const [{ data: lead, error }, { data: acts }, { data: people }] = await Promise.all([
     sb.from("leads").select("*").eq("id", id).maybeSingle(),
     sb.from("activities").select("*").eq("lead_id", id).order("created_at", { ascending: false }),
+    sb.from("people").select("*").eq("lead_id", id).order("created_at", { ascending: true }),
   ]);
   if (error || !lead) {
     view.append(h("p", { class: "muted" }, "Lead not found."));
@@ -531,13 +591,47 @@ async function renderLeadDetail(id) {
   }
   view.append(actions);
 
-  // Contact details ------------------------------------------------------
-  const info = h("div", { class: "muted" });
-  if (lead.phone) info.append(h("div", {}, "Phone: " + lead.phone));
-  if (lead.email) info.append(h("div", {}, "Email: " + lead.email));
-  if (lead.source) info.append(h("div", {}, "Source: " + lead.source));
-  if (lead.source_page) info.append(h("div", {}, "Page: " + lead.source_page));
-  view.append(info);
+  // Contact (editable) ---------------------------------------------------
+  const c = {
+    first_name: h("input", { value: esc(lead.first_name) }),
+    last_name:  h("input", { value: esc(lead.last_name) }),
+    email:      h("input", { type: "email", value: esc(lead.email) }),
+    phone:      h("input", { type: "tel",   value: esc(lead.phone) }),
+  };
+  const contactForm = h(
+    "form",
+    {
+      class: "stack",
+      onsubmit: async (e) => {
+        e.preventDefault();
+        const first = c.first_name.value.trim();
+        if (!first) { toast("First name is required"); return; }
+        const email = c.email.value.trim().toLowerCase() || null;
+        const phone = c.phone.value.trim() || null;
+        if (!email && !phone) { toast("Need an email or phone"); return; }
+        const { error } = await sb.from("leads").update({
+          first_name: first,
+          last_name:  c.last_name.value.trim() || null,
+          email, phone,
+        }).eq("id", id);
+        if (error) toast(error.message);
+        else { toast("Contact saved"); route(); }
+      },
+    },
+    h("h2", {}, "Contact"),
+    h("div", { class: "toolbar" },
+      h("div", { style: "flex:1" }, h("label", {}, "First name"), c.first_name),
+      h("div", { style: "flex:1" }, h("label", {}, "Last name"),  c.last_name),
+    ),
+    h("label", {}, "Email"), c.email,
+    h("label", {}, "Phone"), c.phone,
+    h("button", { class: "btn outline", type: "submit" }, "Save contact"),
+  );
+  if (lead.source || lead.source_page) {
+    contactForm.append(h("p", { class: "muted hint" },
+      "Source: " + [lead.source, lead.source_page].filter(Boolean).join(" · ")));
+  }
+  view.append(contactForm);
 
   // Status + type --------------------------------------------------------
   const statusSel = h("select", {}, ...STATUSES.map(([v, t]) =>
@@ -580,6 +674,9 @@ async function renderLeadDetail(id) {
                   h("option", { value: "false", selected: lead.preapproved === false || undefined }, "No"),
                 ),
     timeline:   h("input", { value: esc(lead.timeline) }),
+    birthday:   h("input", { type: "date", value: lead.birthday ?? "" }),
+    anniversary:h("input", { type: "date", value: lead.anniversary ?? "" }),
+    closing:    h("input", { type: "date", value: lead.closing_date ?? "" }),
   };
   const detailsForm = h("form", {
     class: "stack",
@@ -591,6 +688,9 @@ async function renderLeadDetail(id) {
         price_max:  d.price_max.value ? Number(d.price_max.value) : null,
         preapproved: d.preapproved.value === "" ? null : d.preapproved.value === "true",
         timeline:   d.timeline.value.trim() || null,
+        birthday:   d.birthday.value || null,
+        anniversary: d.anniversary.value || null,
+        closing_date: d.closing.value || null,
       }).eq("id", id);
       if (error) toast(error.message);
       else toast("Saved");
@@ -604,9 +704,67 @@ async function renderLeadDetail(id) {
     ),
     h("label", {}, "Pre-approved"), d.preapproved,
     h("label", {}, "Timeline"), d.timeline,
+    h("h3", { style: "margin-top:1rem" }, "Dates"),
+    h("div", { class: "toolbar" },
+      h("div", { style: "flex:1" }, h("label", {}, "Birthday"), d.birthday),
+      h("div", { style: "flex:1" }, h("label", {}, "Anniversary"), d.anniversary),
+    ),
+    h("label", {}, "Closing date"), d.closing,
     h("button", { class: "btn outline", type: "submit" }, "Save details"),
   );
   view.append(detailsForm);
+
+  // Family --------------------------------------------------------------
+  view.append(h("h2", {}, "Family"));
+  const renderPersonRow = (p) => {
+    const name  = h("input", { value: esc(p?.name) });
+    const rel   = h("input", { value: esc(p?.relationship), placeholder: "spouse, son, daughter…" });
+    const bday  = h("input", { type: "date", value: p?.birthday ?? "" });
+    const notes = h("input", { value: esc(p?.notes), placeholder: "Notes" });
+    return h(
+      "form",
+      {
+        class: "stack",
+        style: "border-top:1px solid var(--line);padding-top:0.75rem;margin-top:0.75rem",
+        onsubmit: async (e) => {
+          e.preventDefault();
+          const payload = {
+            name: name.value.trim(),
+            relationship: rel.value.trim() || null,
+            birthday: bday.value || null,
+            notes: notes.value.trim() || null,
+          };
+          if (!payload.name) { toast("Name required"); return; }
+          const res = p?.id
+            ? await sb.from("people").update(payload).eq("id", p.id)
+            : await sb.from("people").insert({ ...payload, lead_id: id });
+          if (res.error) toast(res.error.message);
+          else { toast(p?.id ? "Saved" : "Added"); route(); }
+        },
+      },
+      h("div", { class: "toolbar" },
+        h("div", { style: "flex:1" }, h("label", {}, "Name"), name),
+        h("div", { style: "flex:1" }, h("label", {}, "Relationship"), rel),
+      ),
+      h("div", { class: "toolbar" },
+        h("div", { style: "flex:1" }, h("label", {}, "Birthday"), bday),
+        h("div", { style: "flex:1" }, h("label", {}, "Notes"), notes),
+      ),
+      h("div", { class: "toolbar" },
+        h("button", { class: "btn outline", type: "submit" }, p?.id ? "Save" : "Add"),
+        p?.id ? h("button", {
+          class: "link", type: "button",
+          onclick: async () => {
+            if (!confirm("Remove " + (p.name || "this person") + "?")) return;
+            await sb.from("people").delete().eq("id", p.id);
+            route();
+          },
+        }, "Remove") : null,
+      ),
+    );
+  };
+  for (const p of people ?? []) view.append(renderPersonRow(p));
+  view.append(renderPersonRow(null));
 
   // Follow-up ------------------------------------------------------------
   const fuDate = h("input", {
