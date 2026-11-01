@@ -130,7 +130,11 @@ signOutBtn.addEventListener("click", async () => {
 function renderSignIn() {
   view.replaceChildren();
   const email = h("input", {
-    type: "email", placeholder: "Email", autocomplete: "email", required: true,
+    type: "email", placeholder: "Email", autocomplete: "username", required: true,
+  });
+  const password = h("input", {
+    type: "password", placeholder: "Password",
+    autocomplete: "current-password", required: true,
   });
   const form = h(
     "form",
@@ -138,20 +142,17 @@ function renderSignIn() {
       class: "stack",
       onsubmit: async (e) => {
         e.preventDefault();
-        const { error } = await sb.auth.signInWithOtp({
+        const { error } = await sb.auth.signInWithPassword({
           email: email.value.trim(),
-          options: {
-            emailRedirectTo: new URL(".", location.href).toString(),
-            shouldCreateUser: false,
-          },
+          password: password.value,
         });
         if (error) toast(error.message);
-        else toast("Check your email for the link.");
       },
     },
     h("h1", {}, "Sign in"),
     email,
-    h("button", { class: "btn block", type: "submit" }, "Send magic link"),
+    password,
+    h("button", { class: "btn block", type: "submit" }, "Sign in"),
   );
   view.append(h("div", { class: "signin" }, form));
 }
