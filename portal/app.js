@@ -121,8 +121,9 @@ function updateTabs() {
 window.addEventListener("hashchange", route);
 sb.auth.onAuthStateChange(route);
 signOutBtn.addEventListener("click", async () => {
-  await sb.auth.signOut();
+  await sb.auth.signOut({ scope: "local" });
   location.hash = "#/";
+  route();
 });
 
 // --- views ----------------------------------------------------------------
