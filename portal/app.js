@@ -11,6 +11,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 const view = document.getElementById("view");
 const signOutBtn = document.getElementById("signout");
 const toastEl = document.getElementById("toast");
+const navEl = document.querySelector(".tabs");
 
 // --- helpers --------------------------------------------------------------
 
@@ -92,6 +93,7 @@ const routes = [
 async function route() {
   const session = (await sb.auth.getSession()).data.session;
   signOutBtn.hidden = !session;
+  navEl.hidden = !session;
   if (!session) return renderSignIn();
 
   const hash = location.hash.replace(/^#/, "");
