@@ -142,7 +142,8 @@ def footer(rel):
     <div class="footer__brokerage">{E(a["brokerage"])} · <a href="tel:{a["tel"]}">{E(a["phone"])}</a></div>
     <div class="footer__links"><a href="{rel}index.html#properties">Properties</a><a href="{rel}index.html#about">About</a><a href="{rel}index.html#contact">Contact</a>{socials}</div>
     <div class="footer__legal">© 2026 {E(a["name"])}, {E(a["role"])} · {E(a["brokerage"])} · {E(a["license"])}. Information deemed reliable but not guaranteed; buyer to verify all details including schools and square footage. REALTOR® is a registered trademark of the National Association of REALTORS®.
-      <div class="eho"><svg viewBox="0 0 24 24"><path d="m3 11 9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M8 14h8M8 17h8"/></svg> Equal Housing Opportunity</div></div>
+      <div class="eho"><svg viewBox="0 0 24 24"><path d="m3 11 9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M8 14h8M8 17h8"/></svg> Equal Housing Opportunity</div>
+      <div class="footer__portal"><a href="{rel}portal/" rel="nofollow">Agent Portal</a></div></div>
   </div>
 </footer>'''
 

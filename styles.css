@@ -154,6 +154,9 @@ p { margin: 0 0 1em; }
 .footer__legal { max-width: 900px; margin: 0 auto; }
 .eho { display: inline-flex; gap: 10px; align-items: center; margin-top: 12px; }
 .eho svg { width: 22px; height: 22px; stroke: var(--muted); fill: none; stroke-width: 1.4; }
+.footer__portal { margin-top: 14px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
+.footer__portal a { color: var(--muted); }
+.footer__portal a:hover { color: var(--ink); }
 
 /* ---------- Home page: property cards ---------- */
 .properties { display: grid; gap: 64px; }
