@@ -111,14 +111,28 @@ async function route() {
       new Promise((_, rej) => setTimeout(() => rej(new Error("session_timeout")), 5000)),
     ]);
   } catch (_) {
-    // Auth state is wedged — wipe local tokens and reload fresh.
-    try {
-      for (const k of Object.keys(localStorage)) {
-        if (k.startsWith("sb-") || k.includes("supabase")) localStorage.removeItem(k);
-      }
-    } catch (__) {}
-    location.replace(location.pathname);
+    hardSignOut();
     return;
+  }
+  // Expired token with hung refresh is the usual cause of the "blank screen
+  // with menu" symptom when a tab comes back after being idle. If the local
+  // session says it's expired, try one explicit refresh with a short timeout;
+  // if that fails or hangs, force a clean sign-out.
+  if (session && session.expires_at && session.expires_at * 1000 < Date.now() + 5000) {
+    try {
+      const refreshed = await Promise.race([
+        sb.auth.refreshSession(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("refresh_timeout")), 4000)),
+      ]);
+      if (refreshed.error || !refreshed.data?.session) {
+        hardSignOut();
+        return;
+      }
+      session = refreshed.data.session;
+    } catch (_) {
+      hardSignOut();
+      return;
+    }
   }
   signOutBtn.hidden = !session;
   navEl.hidden = !session;
@@ -130,9 +144,19 @@ async function route() {
     if (m) {
       view.replaceChildren();
       try {
-        await fn(...m.slice(1));
+        await Promise.race([
+          fn(...m.slice(1)),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("render_timeout")), 8000)),
+        ]);
       } catch (e) {
         console.error(e);
+        if (
+          e?.message === "render_timeout" ||
+          /jwt|JWT|invalid.*token|401/i.test(e?.message ?? "")
+        ) {
+          hardSignOut();
+          return;
+        }
         view.append(h("p", { class: "muted" }, "Something went wrong."));
       }
       updateTabs();
