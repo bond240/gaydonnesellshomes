@@ -511,7 +511,7 @@ async function renderNewLead() {
     field("State",  f.state),
     field("ZIP",    f.zip),
     field("Notes",  f.notes),
-    h("button", { class: "btn", type: "submit" }, "Save lead"),
+    h("button", { class: "btn block", type: "submit" }, "Save lead"),
   );
   view.append(form);
 }
@@ -552,7 +552,7 @@ async function renderSettings() {
     h("h2", {}, "Change email"),
     h("label", {}, "New email"), emailInput,
     emailMsg,
-    h("button", { class: "btn outline", type: "submit" }, "Update email"),
+    h("button", { class: "btn outline block", type: "submit" }, "Update email"),
   );
   view.append(emailForm);
 
@@ -584,7 +584,7 @@ async function renderSettings() {
     h("label", {}, "New password"), pw1,
     h("label", {}, "Confirm"), pw2,
     pwMsg,
-    h("button", { class: "btn outline", type: "submit" }, "Update password"),
+    h("button", { class: "btn outline block", type: "submit" }, "Update password"),
   );
   view.append(pwForm);
 
@@ -673,7 +673,7 @@ async function renderLeadDetail(id) {
     h("label", {}, "City"),   c.city,
     h("label", {}, "State"),  c.state,
     h("label", {}, "ZIP"),    c.zip,
-    h("button", { class: "btn outline", type: "submit", style: "margin-top:0.5rem" }, "Save contact"),
+    h("button", { class: "btn outline block", type: "submit", style: "margin-top:0.5rem" }, "Save contact"),
   );
   if (lead.source || lead.source_page) {
     contactForm.append(h("p", { class: "muted hint" },
@@ -752,7 +752,7 @@ async function renderLeadDetail(id) {
     h("label", {}, "Birthday"), d.birthday,
     h("label", {}, "Anniversary"), d.anniversary,
     h("label", {}, "Closing date"), d.closing,
-    h("button", { class: "btn outline", type: "submit" }, "Save details"),
+    h("button", { class: "btn outline block", type: "submit" }, "Save details"),
   );
   view.append(detailsForm);
 
@@ -788,17 +788,15 @@ async function renderLeadDetail(id) {
       h("label", {}, "Relationship"), rel,
       h("label", {}, "Birthday"), bday,
       h("label", {}, "Notes"), notes,
-      h("div", { class: "toolbar" },
-        h("button", { class: "btn outline", type: "submit" }, p?.id ? "Save" : "Add"),
-        p?.id ? h("button", {
-          class: "link", type: "button",
-          onclick: async () => {
-            if (!confirm("Remove " + (p.name || "this person") + "?")) return;
-            await sb.from("people").delete().eq("id", p.id);
-            route();
-          },
-        }, "Remove") : null,
-      ),
+      h("button", { class: "btn outline block", type: "submit" }, p?.id ? "Save" : "Add"),
+      p?.id ? h("button", {
+        class: "link", type: "button", style: "margin-top:0.25rem;align-self:center",
+        onclick: async () => {
+          if (!confirm("Remove " + (p.name || "this person") + "?")) return;
+          await sb.from("people").delete().eq("id", p.id);
+          route();
+        },
+      }, "Remove") : null,
     );
   };
   for (const p of people ?? []) view.append(renderPersonRow(p));
@@ -825,7 +823,7 @@ async function renderLeadDetail(id) {
     h("h2", {}, "Follow-up"),
     h("label", {}, "When"), fuDate,
     h("label", {}, "Note"), fuNote,
-    h("button", { class: "btn outline", type: "submit" }, "Set follow-up"),
+    h("button", { class: "btn outline block", type: "submit" }, "Set follow-up"),
   );
   view.append(fuForm);
 
@@ -843,7 +841,7 @@ async function renderLeadDetail(id) {
       toast("Note saved");
       route();
     },
-  }, noteBox, h("button", { class: "btn", type: "submit" }, "Save note"));
+  }, noteBox, h("button", { class: "btn block", type: "submit" }, "Save note"));
   view.append(noteForm);
 
   view.append(h("div", { class: "actions-row" },
