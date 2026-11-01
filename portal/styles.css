@@ -47,13 +47,23 @@ h3 { font-size: 0.85rem; margin: 1rem 0 0.5rem; }
   text-transform: uppercase; letter-spacing: 0.18em;
   font-weight: 500; font-size: 0.9rem;
 }
-.tabs { display: flex; gap: 1rem; margin-left: auto; }
+.tabs { display: flex; gap: 1rem; margin-left: auto; flex-wrap: wrap; }
 .tabs a {
   text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.78rem;
   color: var(--muted); padding: 0.3rem 0;
-  border-bottom: 2px solid transparent;
+  border-bottom: 2px solid transparent; white-space: nowrap;
 }
 .tabs a.active { color: var(--ink); border-bottom-color: var(--ink); }
+
+@media (max-width: 480px) {
+  /* Keep the top bar readable at phone width: smaller gaps, no wrapping
+     labels like "SIGN OUT" breaking in half. */
+  .topbar { gap: 0.5rem; padding-left: 0.75rem; padding-right: 0.75rem; }
+  .tabs { gap: 0.7rem; }
+  .tabs a { font-size: 0.72rem; letter-spacing: 0.1em; }
+  .brand { font-size: 0.78rem; letter-spacing: 0.14em; }
+  .link { white-space: nowrap; }
+}
 
 /* Views ------------------------------------------------------------------ */
 .view { padding: 1rem; max-width: 720px; margin: 0 auto; }
@@ -106,10 +116,18 @@ h3 { font-size: 0.85rem; margin: 1rem 0 0.5rem; }
 .toolbar {
   display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;
 }
+.toolbar > * { min-width: 0; }    /* lets flex children shrink below content width */
 .toolbar input, .toolbar select {
   font: inherit; padding: 0.6rem 0.75rem;
   border: 1px solid var(--line); border-radius: 8px;
   background: var(--bg); min-width: 0; flex: 1 1 10rem;
+}
+
+@media (max-width: 480px) {
+  /* On narrow phones, stack toolbar rows so two-column form rows don't
+     clip the right-hand field. */
+  .toolbar { flex-direction: column; align-items: stretch; gap: 0.6rem; }
+  .toolbar > * { flex: 1 1 auto; width: 100%; }
 }
 
 /* Forms ------------------------------------------------------------------ */
