@@ -95,12 +95,14 @@ const label = (pairs, key) => pairs.find((p) => p[0] === key)?.[1] ?? key;
 // --- routing --------------------------------------------------------------
 
 const routes = [
-  [/^$/,              renderToday],
-  [/^\/$/,            renderToday],
-  [/^\/leads$/,       renderLeads],
-  [/^\/new$/,         renderNewLead],
-  [/^\/settings$/,    renderSettings],
-  [/^\/lead\/(.+)$/,  renderLeadDetail],
+  [/^$/,                 renderToday],
+  [/^\/$/,               renderToday],
+  [/^\/leads$/,          renderLeads],
+  [/^\/new$/,            renderNewLead],
+  [/^\/newsletter$/,     renderNewsletter],
+  [/^\/newsletter\/(.+)$/, renderNewsletterDetail],
+  [/^\/settings$/,       renderSettings],
+  [/^\/lead\/(.+)$/,     renderLeadDetail],
 ];
 
 async function route() {
@@ -514,6 +516,213 @@ async function renderNewLead() {
     h("button", { class: "btn block", type: "submit" }, "Save lead"),
   );
   view.append(form);
+}
+
+// --- newsletter -----------------------------------------------------------
+
+async function renderNewsletter() {
+  view.append(h("h1", {}, "Newsletter"));
+
+  // Load eligible leads (email on file, not opted out, not archived).
+  const { data: leads } = await sb.from("leads")
+    .select("id, first_name, last_name, email, status, type, email_opt_out")
+    .eq("archived", false)
+    .not("email", "is", null)
+    .order("created_at", { ascending: false });
+  const eligible = (leads ?? []).filter((l) => !l.email_opt_out);
+
+  view.append(h("p", { class: "muted" },
+    `${eligible.length} lead${eligible.length === 1 ? "" : "s"} with email on file`
+    + ((leads?.length ?? 0) - eligible.length > 0
+      ? ` · ${(leads?.length ?? 0) - eligible.length} opted out`
+      : "")));
+
+  // --- compose form ---------------------------------------------------
+  const subject = h("input", { placeholder: "Subject line", required: true });
+  const bodyText = h("textarea", {
+    placeholder: "Message body. Use {{name}} to insert the recipient's name.",
+    required: true, style: "min-height:10rem",
+  });
+
+  // Recipient mode radios -----------------------------------------
+  const modeAll = h("input", { type: "radio", name: "mode", value: "all", checked: true });
+  const modeFilter = h("input", { type: "radio", name: "mode", value: "filter" });
+  const modePick = h("input", { type: "radio", name: "mode", value: "selected" });
+
+  const statusSel = h("select", { disabled: true },
+    h("option", { value: "" }, "Any status"),
+    ...STATUSES.map(([v, t]) => h("option", { value: v }, t)));
+  const typeSel = h("select", { disabled: true },
+    h("option", { value: "" }, "Any type"),
+    ...TYPES.map(([v, t]) => h("option", { value: v }, t)));
+
+  const pickList = h("div", { style: "max-height:16rem;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:0.5rem;display:none" });
+  const checkboxes = new Map();
+  for (const l of eligible) {
+    const cb = h("input", { type: "checkbox", value: l.id, style: "margin-right:0.5rem" });
+    checkboxes.set(l.id, cb);
+    const name = [l.first_name, l.last_name].filter(Boolean).join(" ") || "(no name)";
+    pickList.append(h("label", {
+      style: "display:flex;align-items:center;padding:0.3rem 0;text-transform:none;letter-spacing:0;font-size:0.9rem;color:var(--text)",
+    }, cb, h("span", {}, `${name} — ${l.email}`)));
+  }
+
+  const countMsg = h("p", { class: "muted hint" }, `Will send to ${eligible.length}`);
+
+  const updateCount = () => {
+    const mode = [modeAll, modeFilter, modePick].find((r) => r.checked)?.value;
+    let n;
+    if (mode === "all") {
+      n = eligible.length;
+    } else if (mode === "filter") {
+      n = eligible.filter((l) =>
+        (!statusSel.value || l.status === statusSel.value) &&
+        (!typeSel.value   || l.type   === typeSel.value)
+      ).length;
+    } else {
+      n = [...checkboxes.values()].filter((cb) => cb.checked).length;
+    }
+    countMsg.textContent = `Will send to ${n}`;
+  };
+
+  const applyMode = () => {
+    const mode = [modeAll, modeFilter, modePick].find((r) => r.checked)?.value;
+    statusSel.disabled = typeSel.disabled = mode !== "filter";
+    pickList.style.display = mode === "selected" ? "block" : "none";
+    updateCount();
+  };
+  [modeAll, modeFilter, modePick].forEach((r) => r.addEventListener("change", applyMode));
+  [statusSel, typeSel].forEach((s) => s.addEventListener("change", updateCount));
+  pickList.addEventListener("change", updateCount);
+
+  const sendBtn = h("button", { class: "btn block", type: "submit" }, "Send newsletter");
+  const errMsg = h("p", { style: "min-height:1.1em;color:#b00020" });
+
+  const form = h("form", {
+    class: "stack",
+    onsubmit: async (e) => {
+      e.preventDefault();
+      errMsg.textContent = "";
+      const mode = [modeAll, modeFilter, modePick].find((r) => r.checked)?.value;
+      const payload = {
+        subject: subject.value.trim(),
+        body_text: bodyText.value.trim(),
+        recipients: { mode },
+      };
+      if (!payload.subject || !payload.body_text) {
+        errMsg.textContent = "Subject and body are required.";
+        return;
+      }
+      if (mode === "selected") {
+        payload.recipients.ids = [...checkboxes.entries()]
+          .filter(([, cb]) => cb.checked).map(([id]) => id);
+        if (!payload.recipients.ids.length) {
+          errMsg.textContent = "Pick at least one lead.";
+          return;
+        }
+      } else if (mode === "filter") {
+        payload.recipients.filter = {};
+        if (statusSel.value) payload.recipients.filter.status = statusSel.value;
+        if (typeSel.value)   payload.recipients.filter.type   = typeSel.value;
+      }
+
+      const match = /Will send to (\d+)/.exec(countMsg.textContent);
+      const willSend = match ? Number(match[1]) : 0;
+      if (willSend === 0) {
+        errMsg.textContent = "No recipients match.";
+        return;
+      }
+      if (!confirm(`Send "${payload.subject}" to ${willSend} ${willSend === 1 ? "person" : "people"}?`)) return;
+
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Sending…";
+      try {
+        const { data: { session } } = await sb.auth.getSession();
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/send-newsletter`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(result.error || `send failed (${res.status})`);
+        toast(`Sent ${result.sent} / ${result.attempted}`);
+        location.hash = `#/newsletter/${result.campaign_id}`;
+      } catch (err) {
+        errMsg.textContent = err.message || "Send failed.";
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send newsletter";
+      }
+    },
+  },
+    h("h2", {}, "Compose"),
+    h("label", {}, "Subject"), subject,
+    h("label", {}, "Body"), bodyText,
+    h("p", { class: "muted hint" }, "{{name}} will be replaced with the recipient's name."),
+
+    h("h2", {}, "Recipients"),
+    h("label", { style: "text-transform:none;letter-spacing:0;color:var(--text);font-size:0.95rem" },
+      modeAll, " All eligible leads"),
+    h("label", { style: "text-transform:none;letter-spacing:0;color:var(--text);font-size:0.95rem" },
+      modeFilter, " Filter by status / type"),
+    h("div", { class: "toolbar" }, statusSel, typeSel),
+    h("label", { style: "text-transform:none;letter-spacing:0;color:var(--text);font-size:0.95rem" },
+      modePick, " Pick leads"),
+    pickList,
+
+    countMsg,
+    errMsg,
+    sendBtn,
+  );
+  view.append(form);
+
+  applyMode();
+
+  // --- past campaigns -------------------------------------------------
+  view.append(h("h2", {}, "Past newsletters"));
+  const { data: campaigns } = await sb.from("newsletters")
+    .select("id, created_at, subject, recipient_count, sent_count, failed_count, status")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (!campaigns?.length) {
+    view.append(h("p", { class: "muted" }, "No newsletters sent yet."));
+  } else {
+    for (const c of campaigns) {
+      view.append(h("a", { class: "card", href: `#/newsletter/${c.id}` },
+        h("span", { class: "badge" }, c.status),
+        h("span", { class: "name" }, c.subject),
+        h("div", { class: "meta" },
+          `${fmtDateTime(c.created_at)} · sent ${c.sent_count}/${c.recipient_count}`
+          + (c.failed_count ? ` · ${c.failed_count} failed` : "")),
+      ));
+    }
+  }
+}
+
+async function renderNewsletterDetail(id) {
+  const { data: c, error } = await sb.from("newsletters").select("*").eq("id", id).maybeSingle();
+  if (error || !c) {
+    view.append(h("p", { class: "muted" }, "Newsletter not found."));
+    return;
+  }
+  view.append(h("h1", {}, c.subject));
+  view.append(h("p", { class: "muted" },
+    `${fmtDateTime(c.created_at)} · ${c.status}`));
+  view.append(h("p", {},
+    `Attempted ${c.recipient_count} · sent ${c.sent_count}`
+    + (c.failed_count ? ` · failed ${c.failed_count}` : "")
+    + (c.skipped_count ? ` · skipped ${c.skipped_count}` : "")));
+
+  view.append(h("h2", {}, "Body"));
+  view.append(h("div", {
+    style: "white-space:pre-wrap;border:1px solid var(--line);border-radius:8px;padding:1rem;background:var(--bg-alt)",
+  }, c.body_text));
+
+  view.append(h("div", { style: "margin-top:1.5rem" },
+    h("a", { class: "btn outline", href: "#/newsletter" }, "Back to newsletter"),
+  ));
 }
 
 async function renderSettings() {
