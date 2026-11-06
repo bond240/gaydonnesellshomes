@@ -726,12 +726,26 @@ async function renderNewsletter() {
   const sendBtn = h("button", { class: "btn block", type: "submit" }, "Send newsletter");
   const errMsg = h("p", { style: "min-height:1.1em;color:#b00020" });
 
+  // Schedule controls -------------------------------------------------
+  const whenNow = h("input", { type: "radio", name: "when", value: "now", checked: true });
+  const whenLater = h("input", { type: "radio", name: "when", value: "later" });
+  const whenInput = h("input", { type: "datetime-local", disabled: true });
+  // Default schedule to 1 hour from now, in Central (America/Chicago) local time.
+  whenInput.value = localInputValue(new Date(Date.now() + 60 * 60 * 1000));
+  const applyWhen = () => {
+    const picked = [whenNow, whenLater].find((r) => r.checked)?.value;
+    whenInput.disabled = picked !== "later";
+    sendBtn.textContent = picked === "later" ? "Schedule newsletter" : "Send newsletter";
+  };
+  [whenNow, whenLater].forEach((r) => r.addEventListener("change", applyWhen));
+
   const form = h("form", {
     class: "stack",
     onsubmit: async (e) => {
       e.preventDefault();
       errMsg.textContent = "";
       const mode = [modeAll, modeFilter, modePick].find((r) => r.checked)?.value;
+      const whenPick = [whenNow, whenLater].find((r) => r.checked)?.value;
       const payload = {
         subject: subject.value.trim(),
         body_text: bodyText.value.trim(),
@@ -756,10 +770,50 @@ async function renderNewsletter() {
 
       const match = /Will send to (\d+)/.exec(countMsg.textContent);
       const willSend = match ? Number(match[1]) : 0;
-      if (willSend === 0) {
+      if (willSend === 0 && mode !== "all" && mode !== "filter") {
+        // For 'all'/'filter' schedules, recipients are resolved at send time,
+        // so a zero-count right now doesn't mean the future send will be zero.
         errMsg.textContent = "No recipients match.";
         return;
       }
+
+      // Scheduled send -----------------------------------------------
+      if (whenPick === "later") {
+        if (!whenInput.value) { errMsg.textContent = "Pick a date and time."; return; }
+        const scheduledAt = new Date(whenInput.value);
+        if (isNaN(+scheduledAt) || scheduledAt <= new Date()) {
+          errMsg.textContent = "Pick a future date and time."; return;
+        }
+        const label = whenLabel(scheduledAt);
+        const audienceWord = mode === "all" ? "all eligible leads"
+                            : mode === "filter" ? "the filtered leads"
+                            : `${willSend} ${willSend === 1 ? "person" : "people"}`;
+        if (!confirm(`Schedule "${payload.subject}" to ${audienceWord} for ${label}?`)) return;
+
+        sendBtn.disabled = true;
+        sendBtn.textContent = "Scheduling…";
+        const { error } = await sb.from("newsletter_schedules").insert({
+          subject: payload.subject,
+          body_text: payload.body_text,
+          recipient_mode: payload.recipients.mode,
+          recipient_ids:    payload.recipients.ids    ?? null,
+          recipient_filter: payload.recipients.filter ?? null,
+          scheduled_at: scheduledAt.toISOString(),
+        });
+        if (error) {
+          errMsg.textContent = error.message;
+          sendBtn.disabled = false;
+          applyWhen();
+          return;
+        }
+        toast(`Scheduled for ${label}`);
+        location.hash = "#/newsletter";
+        scheduleRoute();
+        return;
+      }
+
+      // Immediate send ----------------------------------------------
+      if (willSend === 0) { errMsg.textContent = "No recipients match."; return; }
       if (!confirm(`Send "${payload.subject}" to ${willSend} ${willSend === 1 ? "person" : "people"}?`)) return;
 
       sendBtn.disabled = true;
@@ -781,7 +835,7 @@ async function renderNewsletter() {
       } catch (err) {
         errMsg.textContent = err.message || "Send failed.";
         sendBtn.disabled = false;
-        sendBtn.textContent = "Send newsletter";
+        applyWhen();
       }
     },
   },
@@ -802,12 +856,25 @@ async function renderNewsletter() {
     pickList,
 
     countMsg,
+
+    h("h2", {}, "When"),
+    h("label", { style: "text-transform:none;letter-spacing:0;color:var(--text);font-size:0.95rem" },
+      whenNow, " Send now"),
+    h("label", { style: "text-transform:none;letter-spacing:0;color:var(--text);font-size:0.95rem" },
+      whenLater, " Schedule for later"),
+    whenInput,
+    h("p", { class: "muted hint" }, "Central time. Checked every minute, so sends may fire up to a minute after the chosen time."),
+
     errMsg,
     sendBtn,
   );
   view.append(form);
 
   applyMode();
+  applyWhen();
+
+  // --- scheduled (pending) --------------------------------------------
+  await renderScheduledSection();
 
   // --- past campaigns -------------------------------------------------
   view.append(h("h2", {}, "Past newsletters"));
@@ -836,6 +903,71 @@ async function renderNewsletter() {
       );
       view.append(card);
     }
+  }
+}
+
+// Format a Date as the value a <input type="datetime-local"> expects,
+// but in Central (America/Chicago) wall time instead of browser-local.
+function localInputValue(date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(date);
+  const get = (t) => parts.find((p) => p.type === t)?.value;
+  const hr = get("hour") === "24" ? "00" : get("hour");  // 'en-US' quirk
+  return `${get("year")}-${get("month")}-${get("day")}T${hr}:${get("minute")}`;
+}
+
+// Format a scheduled time in Central for display to Gaydonne.
+function whenLabel(date) {
+  return date.toLocaleString(undefined, {
+    timeZone: "America/Chicago",
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit", timeZoneName: "short",
+  });
+}
+
+async function renderScheduledSection() {
+  const { data: schedules } = await sb.from("newsletter_schedules")
+    .select("id, subject, scheduled_at, recipient_mode, status, last_error, created_at")
+    .in("status", ["pending", "sending", "failed"])
+    .order("scheduled_at", { ascending: true })
+    .limit(50);
+  if (!schedules?.length) return;
+
+  view.append(h("h2", {}, "Scheduled"));
+  for (const s of schedules) {
+    const audience =
+      s.recipient_mode === "all"      ? "all eligible leads" :
+      s.recipient_mode === "filter"   ? "filtered leads" :
+      s.recipient_mode === "selected" ? "selected leads" : s.recipient_mode;
+    const card = h("div", { class: "card", style: "display:flex;align-items:center;gap:0.5rem" },
+      h("div", { style: "flex:1" },
+        h("span", { class: "badge" }, s.status),
+        h("span", { class: "name", style: "display:block" }, s.subject),
+        h("div", { class: "meta" },
+          `${whenLabel(new Date(s.scheduled_at))} · ${audience}`),
+        s.last_error
+          ? h("div", { class: "meta", style: "color:#b00020;margin-top:0.25rem" }, s.last_error.split("\n")[0])
+          : null,
+      ),
+      s.status === "pending"
+        ? h("button", {
+            class: "link",
+            type: "button",
+            style: "padding:0.3rem 0.6rem;white-space:nowrap",
+            onclick: async () => {
+              if (!confirm(`Cancel scheduled "${s.subject}"?`)) return;
+              const { error } = await sb.from("newsletter_schedules")
+                .update({ status: "cancelled" }).eq("id", s.id);
+              if (error) { toast(error.message); return; }
+              toast("Cancelled");
+              scheduleRoute();
+            },
+          }, "Cancel")
+        : null,
+    );
+    view.append(card);
   }
 }
 
