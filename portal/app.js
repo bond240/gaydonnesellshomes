@@ -751,6 +751,12 @@ async function renderNewsletter() {
   const whenNow = h("input", { type: "radio", name: "when", value: "now", checked: true });
   const whenLater = h("input", { type: "radio", name: "when", value: "later" });
   const whenInput = h("input", { type: "datetime-local", disabled: true });
+  const repeatSel = h("select", { disabled: true },
+    h("option", { value: "" }, "One-time"),
+    h("option", { value: "daily" }, "Daily"),
+    h("option", { value: "weekly" }, "Weekly"),
+    h("option", { value: "monthly" }, "Monthly"),
+  );
   // Default schedule to 1 hour from now, in the user's chosen timezone.
   whenInput.value = localInputValue(new Date(Date.now() + 60 * 60 * 1000));
   const nowReadout = h("span", { class: "muted", style: "font-size:0.85rem" }, nowLabel());
@@ -775,6 +781,7 @@ async function renderNewsletter() {
   const applyWhen = () => {
     const picked = [whenNow, whenLater].find((r) => r.checked)?.value;
     whenInput.disabled = picked !== "later";
+    repeatSel.disabled = picked !== "later";
     sendBtn.textContent = picked === "later" ? "Schedule newsletter" : "Send newsletter";
     scheduledReadout.style.display = picked === "later" ? "" : "none";
   };
@@ -840,6 +847,7 @@ async function renderNewsletter() {
           recipient_ids:    payload.recipients.ids    ?? null,
           recipient_filter: payload.recipients.filter ?? null,
           scheduled_at: scheduledAt.toISOString(),
+          recurrence: repeatSel.value || null,
         });
         if (error) {
           errMsg.textContent = error.message;
@@ -905,6 +913,7 @@ async function renderNewsletter() {
       whenLater, " Schedule for later"),
     nowReadout,
     whenInput,
+    h("label", {}, "Repeat"), repeatSel,
     scheduledReadout,
     h("p", { class: "muted hint" },
       `All times are ${getTimeZone()}. Change in Settings. Checked every minute, so sends may fire up to a minute after the chosen time.`),
@@ -995,7 +1004,7 @@ function nowLabel(tz = getTimeZone()) {
 
 async function renderScheduledSection() {
   const { data: schedules } = await sb.from("newsletter_schedules")
-    .select("id, subject, scheduled_at, recipient_mode, status, last_error, created_at")
+    .select("id, subject, scheduled_at, recipient_mode, status, last_error, created_at, recurrence")
     .in("status", ["pending", "sending", "failed"])
     .order("scheduled_at", { ascending: true })
     .limit(50);
@@ -1007,12 +1016,19 @@ async function renderScheduledSection() {
       s.recipient_mode === "all"      ? "all eligible leads" :
       s.recipient_mode === "filter"   ? "filtered leads" :
       s.recipient_mode === "selected" ? "selected leads" : s.recipient_mode;
+    const whenText = `${whenLabel(new Date(s.scheduled_at))} · ${audience}`;
+    const recurText = s.recurrence
+      ? `Repeats ${s.recurrence}`
+      : null;
     const card = h("div", { class: "card", style: "display:flex;align-items:center;gap:0.5rem" },
       h("div", { style: "flex:1" },
         h("span", { class: "badge" }, s.status),
+        s.recurrence
+          ? h("span", { class: "badge", style: "margin-left:0.25rem" }, s.recurrence)
+          : null,
         h("span", { class: "name", style: "display:block" }, s.subject),
-        h("div", { class: "meta" },
-          `${whenLabel(new Date(s.scheduled_at))} · ${audience}`),
+        h("div", { class: "meta" }, whenText),
+        recurText ? h("div", { class: "meta" }, recurText) : null,
         s.last_error
           ? h("div", { class: "meta", style: "color:#b00020;margin-top:0.25rem" }, s.last_error.split("\n")[0])
           : null,
@@ -1023,7 +1039,10 @@ async function renderScheduledSection() {
             type: "button",
             style: "padding:0.3rem 0.6rem;white-space:nowrap",
             onclick: async () => {
-              if (!confirm(`Cancel scheduled "${s.subject}"?`)) return;
+              const msg = s.recurrence
+                ? `Cancel recurring "${s.subject}"? Won't send again.`
+                : `Cancel scheduled "${s.subject}"?`;
+              if (!confirm(msg)) return;
               const { error } = await sb.from("newsletter_schedules")
                 .update({ status: "cancelled" }).eq("id", s.id);
               if (error) { toast(error.message); return; }
