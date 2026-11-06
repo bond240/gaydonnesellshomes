@@ -144,6 +144,9 @@ const routes = [
   [/^\/new$/,            renderNewLead],
   [/^\/newsletter(?:\?.*)?$/, renderNewsletter],
   [/^\/newsletter\/(.+)$/, renderNewsletterDetail],
+  [/^\/drips$/,          renderDrips],
+  [/^\/drip\/new$/,      () => renderDripEditor(null)],
+  [/^\/drip\/(.+)$/,     (id) => renderDripEditor(id)],
   [/^\/settings$/,       renderSettings],
   [/^\/lead\/(.+)$/,     renderLeadDetail],
 ];
@@ -1145,6 +1148,296 @@ async function renderNewsletterDetail(id) {
   ));
 }
 
+// --- Drips ----------------------------------------------------------------
+
+const DRIP_TRIGGERS = [
+  ["manual",         "Manual (I'll enroll leads myself)"],
+  ["on_create",      "On lead added (auto-enroll new leads)"],
+  ["on_birthday",    "On lead's birthday"],
+  ["on_anniversary", "On lead's home anniversary"],
+];
+const dripTriggerLabel = (k) => DRIP_TRIGGERS.find((p) => p[0] === k)?.[1] ?? k;
+
+async function renderDrips() {
+  view.append(h("h1", {}, "Drips"));
+  view.append(h("div", { class: "toolbar" },
+    h("a", { class: "btn outline", href: "#/drip/new" }, "New sequence"),
+  ));
+
+  const [{ data: sequences }, { data: enrollments }] = await Promise.all([
+    sb.from("drip_sequences").select("id, name, trigger_kind, trigger_offset_days, enabled, updated_at")
+      .order("updated_at", { ascending: false }),
+    sb.from("drip_enrollments").select("sequence_id, status"),
+  ]);
+
+  const counts = {};
+  for (const e of enrollments ?? []) {
+    counts[e.sequence_id] ??= { active: 0, completed: 0, cancelled: 0, paused: 0 };
+    counts[e.sequence_id][e.status] = (counts[e.sequence_id][e.status] ?? 0) + 1;
+  }
+
+  if (!sequences?.length) {
+    view.append(h("p", { class: "muted" },
+      "No drip sequences yet. Create one, add some steps, and enroll leads."));
+    return;
+  }
+  for (const s of sequences) {
+    const c = counts[s.id] ?? {};
+    view.append(h("a", { class: "card", href: `#/drip/${s.id}` },
+      h("span", { class: "badge" }, s.enabled ? "on" : "off"),
+      h("span", { class: "badge", style: "margin-left:0.25rem" }, s.trigger_kind.replace(/^on_/, "")),
+      h("span", { class: "name", style: "display:block" }, s.name),
+      h("div", { class: "meta" },
+        `${dripTriggerLabel(s.trigger_kind)}`
+        + (c.active ? ` · ${c.active} active` : "")
+        + (c.completed ? ` · ${c.completed} done` : "")),
+    ));
+  }
+}
+
+async function renderDripEditor(id) {
+  const isNew = !id;
+  const { data: seq } = isNew
+    ? { data: { name: "", trigger_kind: "manual", trigger_offset_days: 0, enabled: true } }
+    : await sb.from("drip_sequences").select("*").eq("id", id).maybeSingle();
+  if (!seq) {
+    view.append(h("p", { class: "muted" }, "Sequence not found."));
+    return;
+  }
+  const { data: stepRows } = isNew
+    ? { data: [] }
+    : await sb.from("drip_steps").select("*").eq("sequence_id", id).order("step_order");
+  const steps = (stepRows ?? []).map((s) => ({ ...s }));
+
+  view.append(h("h1", {}, isNew ? "New drip sequence" : "Drip sequence"));
+
+  // --- Sequence fields ---
+  const nameInput = h("input", { value: esc(seq.name), required: true, placeholder: "e.g. New seller welcome" });
+  const triggerSel = h("select", {}, ...DRIP_TRIGGERS.map(([v, lbl]) =>
+    h("option", { value: v, selected: v === seq.trigger_kind || undefined }, lbl)));
+  const offsetInput = h("input", { type: "number", min: "0", value: seq.trigger_offset_days ?? 0 });
+  const offsetHint = h("p", { class: "muted hint" }, "");
+  const enabledSel = h("select", {},
+    h("option", { value: "true",  selected: seq.enabled || undefined }, "Enabled"),
+    h("option", { value: "false", selected: !seq.enabled || undefined }, "Disabled"));
+
+  const updateOffsetHint = () => {
+    const k = triggerSel.value;
+    offsetInput.disabled = !(k === "on_birthday" || k === "on_anniversary");
+    offsetHint.textContent = offsetInput.disabled
+      ? "Only used for birthday / anniversary triggers."
+      : "Enroll this many days BEFORE the date. 0 = enroll on the day itself.";
+  };
+  triggerSel.addEventListener("change", updateOffsetHint);
+  updateOffsetHint();
+
+  // --- Steps editor ---
+  const stepsBox = h("div", { style: "display:flex;flex-direction:column;gap:0.75rem" });
+  function renderSteps() {
+    stepsBox.replaceChildren();
+    if (!steps.length) {
+      stepsBox.append(h("p", { class: "muted" }, "No steps yet. Add one below."));
+    }
+    steps.forEach((step, i) => {
+      const off = h("input", { type: "number", min: "0", value: step.offset_days ?? 0, style: "max-width:6rem" });
+      const subj = h("input", { value: esc(step.subject ?? ""), placeholder: "Subject", required: true });
+      const body = h("textarea", { placeholder: "Body (use {{name}})", required: true, style: "min-height:5rem" }, step.body_text ?? "");
+      off.addEventListener("input", () => { step.offset_days = Number(off.value) || 0; });
+      subj.addEventListener("input", () => { step.subject = subj.value; });
+      body.addEventListener("input", () => { step.body_text = body.value; });
+      const remove = h("button", {
+        class: "link", type: "button",
+        style: "padding:0.3rem 0.6rem;align-self:flex-start",
+        onclick: () => { steps.splice(i, 1); renderSteps(); },
+      }, "Remove step");
+      stepsBox.append(h("div", {
+        style: "border:1px solid var(--line);border-radius:10px;padding:0.75rem;display:flex;flex-direction:column;gap:0.4rem",
+      },
+        h("div", { style: "font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em" }, `Step ${i + 1}`),
+        h("label", {}, "Days after enrollment"), off,
+        h("label", {}, "Subject"), subj,
+        h("label", {}, "Body"), body,
+        remove,
+      ));
+    });
+  }
+  renderSteps();
+
+  const addStepBtn = h("button", {
+    class: "btn outline", type: "button",
+    onclick: () => {
+      const lastOffset = steps.length ? (steps[steps.length - 1].offset_days ?? 0) : 0;
+      steps.push({ offset_days: lastOffset + 3, subject: "", body_text: "" });
+      renderSteps();
+    },
+  }, "Add step");
+
+  // --- Save / delete / cancel ---
+  const saveBtn = h("button", { class: "btn block", type: "submit" }, isNew ? "Create sequence" : "Save sequence");
+
+  const form = h("form", {
+    class: "stack",
+    onsubmit: async (e) => {
+      e.preventDefault();
+      if (!nameInput.value.trim()) { toast("Name is required"); return; }
+      if (!steps.length) { toast("Add at least one step"); return; }
+      for (const s of steps) {
+        if (!s.subject?.trim() || !s.body_text?.trim()) {
+          toast("Each step needs a subject and body"); return;
+        }
+      }
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+      const payload = {
+        name: nameInput.value.trim(),
+        trigger_kind: triggerSel.value,
+        trigger_offset_days: Number(offsetInput.value) || 0,
+        enabled: enabledSel.value === "true",
+      };
+      let seqId = id;
+      if (isNew) {
+        const { data, error } = await sb.from("drip_sequences").insert(payload).select("id").single();
+        if (error) { toast(error.message); saveBtn.disabled = false; saveBtn.textContent = "Create sequence"; return; }
+        seqId = data.id;
+      } else {
+        const { error } = await sb.from("drip_sequences").update(payload).eq("id", seqId);
+        if (error) { toast(error.message); saveBtn.disabled = false; saveBtn.textContent = "Save sequence"; return; }
+      }
+      // Replace all steps (simpler than diff). Delete-then-insert in a
+      // sequence that's rarely touched is fine.
+      await sb.from("drip_steps").delete().eq("sequence_id", seqId);
+      const stepPayload = steps.map((s, i) => ({
+        sequence_id: seqId, step_order: i,
+        offset_days: Number(s.offset_days) || 0,
+        subject: s.subject.trim(),
+        body_text: s.body_text.trim(),
+      }));
+      const { error: stErr } = await sb.from("drip_steps").insert(stepPayload);
+      if (stErr) { toast(stErr.message); saveBtn.disabled = false; saveBtn.textContent = "Save sequence"; return; }
+      toast(isNew ? "Sequence created" : "Sequence saved");
+      location.hash = "#/drips";
+    },
+  },
+    h("h2", {}, "Sequence"),
+    h("label", {}, "Name"), nameInput,
+    h("label", {}, "Trigger"), triggerSel,
+    h("label", {}, "Trigger offset (days)"), offsetInput, offsetHint,
+    h("label", {}, "Status"), enabledSel,
+    h("h2", {}, "Steps"),
+    stepsBox,
+    addStepBtn,
+    saveBtn,
+  );
+  view.append(form);
+
+  if (!isNew) {
+    view.append(h("div", { style: "margin-top:1.5rem;display:flex;gap:0.5rem;flex-wrap:wrap" },
+      h("button", {
+        class: "btn outline",
+        onclick: async () => {
+          if (!confirm("Delete this sequence? All enrollments will be cancelled.")) return;
+          const { error } = await sb.from("drip_sequences").delete().eq("id", id);
+          if (error) { toast(error.message); return; }
+          toast("Sequence deleted");
+          location.hash = "#/drips";
+        },
+      }, "Delete sequence"),
+      h("a", { class: "btn outline", href: "#/drips" }, "Back to Drips"),
+    ));
+  }
+}
+
+async function renderLeadDripsSection(leadId) {
+  view.append(h("h2", {}, "Drips"));
+  const [{ data: enrollments }, { data: seqs }, { data: stepCounts }] = await Promise.all([
+    sb.from("drip_enrollments")
+      .select("id, sequence_id, status, current_step_index, next_step_at, enrolled_at")
+      .eq("lead_id", leadId)
+      .order("enrolled_at", { ascending: false }),
+    sb.from("drip_sequences").select("id, name, trigger_kind, enabled"),
+    sb.from("drip_steps").select("sequence_id"),
+  ]);
+  const seqById = new Map((seqs ?? []).map((s) => [s.id, s]));
+  const stepCountBySeq = (stepCounts ?? []).reduce((m, r) => {
+    m[r.sequence_id] = (m[r.sequence_id] ?? 0) + 1; return m;
+  }, {});
+
+  // Active + recent enrollments
+  const active = (enrollments ?? []).filter((e) => e.status === "active" || e.status === "paused" || e.status === "sending");
+  const other = (enrollments ?? []).filter((e) => e.status === "completed" || e.status === "cancelled").slice(0, 5);
+
+  if (!active.length && !other.length) {
+    view.append(h("p", { class: "muted" }, "Not enrolled in any drips."));
+  }
+  for (const e of [...active, ...other]) {
+    const seq = seqById.get(e.sequence_id);
+    const total = stepCountBySeq[e.sequence_id] ?? 0;
+    const line = seq
+      ? `${seq.name} · step ${Math.min(e.current_step_index + 1, total)} of ${total}`
+      : "(sequence deleted)";
+    const next = e.next_step_at
+      ? ` · next ${whenLabel(new Date(e.next_step_at))}`
+      : "";
+    const card = h("div", { class: "card", style: "display:flex;align-items:center;gap:0.5rem" },
+      h("div", { style: "flex:1" },
+        h("span", { class: "badge" }, e.status),
+        h("span", { class: "name", style: "display:block" }, line),
+        h("div", { class: "meta" }, `Enrolled ${fmtDate(e.enrolled_at)}${next}`),
+      ),
+      (e.status === "active" || e.status === "paused")
+        ? h("button", {
+            class: "link", type: "button",
+            style: "padding:0.3rem 0.6rem;white-space:nowrap",
+            onclick: async () => {
+              if (!confirm("Cancel this drip for this lead?")) return;
+              const { error } = await sb.from("drip_enrollments").update({
+                status: "cancelled", next_step_at: null,
+              }).eq("id", e.id);
+              if (error) { toast(error.message); return; }
+              toast("Cancelled"); scheduleRoute();
+            },
+          }, "Cancel")
+        : null,
+    );
+    view.append(card);
+  }
+
+  // Enroll in new drip
+  const enrollable = (seqs ?? []).filter((s) => s.enabled);
+  if (enrollable.length) {
+    const picker = h("select", {},
+      h("option", { value: "" }, "— Enroll in drip —"),
+      ...enrollable.map((s) => h("option", { value: s.id }, `${s.name} (${s.trigger_kind.replace(/^on_/, "")})`)),
+    );
+    const enrollBtn = h("button", {
+      class: "btn outline", type: "button",
+      onclick: async () => {
+        if (!picker.value) { toast("Pick a sequence first"); return; }
+        const total = stepCountBySeq[picker.value] ?? 0;
+        if (!total) { toast("That sequence has no steps yet"); return; }
+        // Load first step's offset to schedule next_step_at
+        const { data: firstStep } = await sb.from("drip_steps")
+          .select("offset_days")
+          .eq("sequence_id", picker.value)
+          .eq("step_order", 0)
+          .maybeSingle();
+        const nextStepAt = new Date(Date.now() + ((firstStep?.offset_days ?? 0) * 86400 * 1000));
+        const { error } = await sb.from("drip_enrollments").insert({
+          sequence_id: picker.value,
+          lead_id: leadId,
+          trigger_date: new Date().toISOString().slice(0, 10),
+          current_step_index: 0,
+          next_step_at: nextStepAt.toISOString(),
+          status: "active",
+        });
+        if (error) { toast(error.message); return; }
+        toast("Enrolled"); scheduleRoute();
+      },
+    }, "Enroll");
+    view.append(h("div", { class: "toolbar", style: "margin-top:0.75rem" }, picker, enrollBtn));
+  }
+}
+
 async function renderSettings() {
   view.append(h("h1", {}, "Settings"));
 
@@ -1589,6 +1882,9 @@ async function renderLeadDetail(id) {
     h("button", { class: "btn outline block", type: "submit" }, "Set follow-up"),
   );
   view.append(fuForm);
+
+  // Drip enrollments ------------------------------------------------
+  await renderLeadDripsSection(id);
 
   // Activity log + quick note -------------------------------------------
   view.append(h("h2", {}, "Activity"));
