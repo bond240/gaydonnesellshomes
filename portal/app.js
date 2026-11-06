@@ -171,14 +171,36 @@ function updateTabs() {
   }
 }
 
-window.addEventListener("hashchange", route);
+// At startup, hashchange + INITIAL_SESSION + SIGNED_IN all fire in quick
+// succession, and because each route() awaits DB queries before appending,
+// overlapping calls each paint into the view and we get duplicate content.
+// scheduleRoute debounces rapid calls and serializes execution so only one
+// render runs at a time; any later request during a render re-runs once
+// the current one finishes.
+let _routeTimer = null;
+let _routing = false;
+let _routePending = false;
+function scheduleRoute() {
+  clearTimeout(_routeTimer);
+  _routeTimer = setTimeout(async () => {
+    if (_routing) { _routePending = true; return; }
+    _routing = true;
+    try { await route(); }
+    finally {
+      _routing = false;
+      if (_routePending) { _routePending = false; scheduleRoute(); }
+    }
+  }, 30);
+}
+
+window.addEventListener("hashchange", scheduleRoute);
 
 // Only re-route on real sign-in-state changes. TOKEN_REFRESHED and
 // USER_UPDATED fire during normal background work and shouldn't tear down
 // and re-render the page.
 sb.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "INITIAL_SESSION") {
-    route();
+    scheduleRoute();
   }
 });
 function hardSignOut() {
@@ -764,7 +786,7 @@ async function renderNewsletter() {
     },
   },
     h("h2", {}, "Compose"),
-    templateBar(templates ?? [], subject, bodyText, () => route()),
+    templateBar(templates ?? [], subject, bodyText, scheduleRoute),
     h("label", {}, "Subject"), subject,
     h("label", {}, "Body"), bodyText,
     h("p", { class: "muted hint" }, "{{name}} will be replaced with the recipient's name."),
@@ -1168,7 +1190,7 @@ async function renderLeadDetail(id) {
           zip:    c.zip.value.trim()    || null,
         }).eq("id", id);
         if (error) toast(error.message);
-        else { toast("Contact saved"); route(); }
+        else { toast("Contact saved"); scheduleRoute(); }
       },
     },
     h("h2", {}, "Contact"),
@@ -1203,7 +1225,7 @@ async function renderLeadDetail(id) {
       body: `${label(STATUSES, prev)} → ${label(STATUSES, statusSel.value)}`,
     });
     toast("Status updated");
-    route();
+    scheduleRoute();
   });
   typeSel.addEventListener("change", async () => {
     const { error } = await sb.from("leads").update({ type: typeSel.value }).eq("id", id);
@@ -1289,7 +1311,7 @@ async function renderLeadDetail(id) {
             ? await sb.from("people").update(payload).eq("id", p.id)
             : await sb.from("people").insert({ ...payload, lead_id: id });
           if (res.error) toast(res.error.message);
-          else { toast(p?.id ? "Saved" : "Added"); route(); }
+          else { toast(p?.id ? "Saved" : "Added"); scheduleRoute(); }
         },
       },
       h("label", {}, "Name"), name,
@@ -1302,7 +1324,7 @@ async function renderLeadDetail(id) {
         onclick: async () => {
           if (!confirm("Remove " + (p.name || "this person") + "?")) return;
           await sb.from("people").delete().eq("id", p.id);
-          route();
+          scheduleRoute();
         },
       }, "Remove") : null,
     );
@@ -1347,7 +1369,7 @@ async function renderLeadDetail(id) {
       await sb.from("activities").insert({ lead_id: id, kind: "note", body });
       noteBox.value = "";
       toast("Note saved");
-      route();
+      scheduleRoute();
     },
   }, noteBox, h("button", { class: "btn block", type: "submit" }, "Save note"));
   view.append(noteForm);
@@ -1382,7 +1404,7 @@ async function renderLeadDetail(id) {
 
 async function quickLog(leadId, kind, refresh = false) {
   await sb.from("activities").insert({ lead_id: leadId, kind });
-  if (refresh) { toast("Logged"); route(); }
+  if (refresh) { toast("Logged"); scheduleRoute(); }
 }
 
 function toLocalInput(iso) {
@@ -1393,4 +1415,4 @@ function toLocalInput(iso) {
 
 // --- boot -----------------------------------------------------------------
 
-route();
+scheduleRoute();
