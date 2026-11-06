@@ -808,6 +808,13 @@ async function renderNewsletterDetail(id) {
     + (c.failed_count ? ` · failed ${c.failed_count}` : "")
     + (c.skipped_count ? ` · skipped ${c.skipped_count}` : "")));
 
+  if (c.last_error) {
+    view.append(h("h2", {}, "Error"));
+    view.append(h("div", {
+      style: "white-space:pre-wrap;border:1px solid #b00020;border-radius:8px;padding:0.75rem 1rem;background:#fff4f4;color:#b00020;font-size:0.85rem",
+    }, c.last_error));
+  }
+
   view.append(h("h2", {}, "Body"));
   view.append(h("div", {
     style: "white-space:pre-wrap;border:1px solid var(--line);border-radius:8px;padding:1rem;background:var(--bg-alt)",
