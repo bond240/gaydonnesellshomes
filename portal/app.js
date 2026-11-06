@@ -128,39 +128,22 @@ const routes = [
 ];
 
 async function route() {
-  let session;
-  try {
-    session = await Promise.race([
-      sb.auth.getSession().then((r) => r.data.session),
-      new Promise((_, rej) => setTimeout(() => rej(new Error("session_timeout")), 5000)),
-    ]);
-  } catch (_) {
-    hardSignOut();
-    return;
+  // getSession reads from localStorage — effectively instant, no need to
+  // race it against a timeout.
+  const { data: { session } } = await sb.auth.getSession();
+
+  // If the stored token is close to expiry, nudge a refresh but DON'T
+  // force sign-out on network failure. Supabase's autoRefreshToken is
+  // already watching this in the background; a bad wifi moment shouldn't
+  // kick Gaydonne out — she'll try again in a second.
+  if (session && session.expires_at && session.expires_at * 1000 < Date.now() + 30000) {
+    try { await sb.auth.refreshSession(); } catch (_) { /* leave existing session */ }
   }
-  // Expired token with hung refresh is the usual cause of the "blank screen
-  // with menu" symptom when a tab comes back after being idle. If the local
-  // session says it's expired, try one explicit refresh with a short timeout;
-  // if that fails or hangs, force a clean sign-out.
-  if (session && session.expires_at && session.expires_at * 1000 < Date.now() + 5000) {
-    try {
-      const refreshed = await Promise.race([
-        sb.auth.refreshSession(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error("refresh_timeout")), 4000)),
-      ]);
-      if (refreshed.error || !refreshed.data?.session) {
-        hardSignOut();
-        return;
-      }
-      session = refreshed.data.session;
-    } catch (_) {
-      hardSignOut();
-      return;
-    }
-  }
-  signOutBtn.hidden = !session;
-  navEl.hidden = !session;
-  if (!session) return renderSignIn();
+
+  const live = (await sb.auth.getSession()).data.session;
+  signOutBtn.hidden = !live;
+  navEl.hidden = !live;
+  if (!live) return renderSignIn();
 
   const hash = location.hash.replace(/^#/, "");
   for (const [re, fn] of routes) {
@@ -168,20 +151,11 @@ async function route() {
     if (m) {
       view.replaceChildren();
       try {
-        await Promise.race([
-          fn(...m.slice(1)),
-          new Promise((_, rej) => setTimeout(() => rej(new Error("render_timeout")), 8000)),
-        ]);
+        await fn(...m.slice(1));
       } catch (e) {
         console.error(e);
-        if (
-          e?.message === "render_timeout" ||
-          /jwt|JWT|invalid.*token|401/i.test(e?.message ?? "")
-        ) {
-          hardSignOut();
-          return;
-        }
-        view.append(h("p", { class: "muted" }, "Something went wrong."));
+        view.replaceChildren(h("p", { class: "muted" },
+          "Couldn't load that page. Check your connection and try again."));
       }
       updateTabs();
       return;
@@ -198,7 +172,15 @@ function updateTabs() {
 }
 
 window.addEventListener("hashchange", route);
-sb.auth.onAuthStateChange(route);
+
+// Only re-route on real sign-in-state changes. TOKEN_REFRESHED and
+// USER_UPDATED fire during normal background work and shouldn't tear down
+// and re-render the page.
+sb.auth.onAuthStateChange((event) => {
+  if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "INITIAL_SESSION") {
+    route();
+  }
+});
 function hardSignOut() {
   // Clear every supabase-js auth key, synchronous and uncancellable.
   try {
