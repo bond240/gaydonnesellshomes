@@ -66,7 +66,7 @@ h3 { font-size: 0.85rem; margin: 1rem 0 0.5rem; }
 }
 
 /* Views ------------------------------------------------------------------ */
-.view { padding: 1rem; max-width: 720px; margin: 0 auto; }
+.view { padding: 1rem; max-width: 1040px; margin: 0 auto; }
 .muted { color: var(--muted); font-size: 0.9rem; }
 .hint  { color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; }
 
@@ -111,6 +111,108 @@ h3 { font-size: 0.85rem; margin: 1rem 0 0.5rem; }
 }
 .card.overdue { border-color: var(--ink); }
 .card.overdue .badge { color: var(--ink); border-color: var(--ink); }
+
+/* Lead tile grid (/leads view) ------------------------------------------- */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+.tile {
+  display: flex; flex-direction: column;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  aspect-ratio: 1 / 1;
+  min-height: 11rem;
+  overflow: hidden;
+  transition: border-color 0.12s ease, transform 0.08s ease;
+}
+.tile:hover { border-color: var(--ink); text-decoration: none; }
+.tile:active { transform: scale(0.99); }
+.tile-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.tile .badge {
+  font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase;
+  padding: 0.12rem 0.5rem; border: 1px solid var(--line);
+  border-radius: 999px; color: var(--muted);
+  flex: 0 0 auto;
+}
+.tile-avatar {
+  flex: 0 0 auto;
+  width: 2.25rem; height: 2.25rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-alt);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted);
+  font-size: 0.7rem; font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.tile-avatar img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.tile-avatar.placeholder { border: 1px solid var(--line); }
+.tile-name {
+  font-weight: 500; color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.2;
+  margin-bottom: 0.35rem;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.tile-line {
+  color: var(--text); font-size: 0.85rem;
+  margin-top: 0.1rem;
+}
+.tile-line.truncate {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tile-foot {
+  margin-top: auto;
+  color: var(--muted); font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  padding-top: 0.5rem;
+}
+@media (max-width: 420px) {
+  .tiles { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+  .tile { padding: 0.7rem 0.75rem; min-height: 9.5rem; border-radius: 10px; }
+  .tile-name { font-size: 0.9rem; }
+  .tile-line { font-size: 0.78rem; }
+  .tile-foot { font-size: 0.68rem; }
+}
+
+/* Lead detail photo block ------------------------------------------------ */
+.lead-photo-block {
+  display: flex; align-items: center; gap: 1rem;
+  margin: 0 0 1rem;
+}
+.lead-photo {
+  flex: 0 0 auto;
+  width: 5rem; height: 5rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+}
+.lead-photo img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.lead-photo-initials {
+  color: var(--muted); font-weight: 500; font-size: 1.4rem;
+  letter-spacing: 0.04em;
+}
+.lead-photo-actions {
+  display: flex; flex-direction: column; gap: 0.35rem;
+  align-items: flex-start;
+}
 
 /* Toolbar + filters ------------------------------------------------------ */
 .toolbar {

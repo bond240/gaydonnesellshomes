@@ -47,6 +47,28 @@ const h = (tag, attrs = {}, ...children) => {
 
 const esc = (s) => (s ?? "").toString();
 
+const initialsOf = (l) => {
+  const a = (l?.first_name || "").trim()[0] || "";
+  const b = (l?.last_name  || "").trim()[0] || "";
+  return (a + b).toUpperCase() || "?";
+};
+
+// Resize an image file to a max square and re-encode as JPEG so the upload
+// is small regardless of what the user picked. Returns a Blob.
+async function resizeImage(file, max = 480, quality = 0.85) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+  const w = Math.round(bitmap.width  * scale);
+  const h = Math.round(bitmap.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+  return new Promise((res, rej) => {
+    canvas.toBlob((b) => b ? res(b) : rej(new Error("encode failed")),
+                  "image/jpeg", quality);
+  });
+}
+
 const fmtDateTime = (iso) => {
   if (!iso) return "";
   const d = new Date(iso);
@@ -351,22 +373,97 @@ function leadCard(l, { overdue = false } = {}) {
   );
 }
 
+// Compact square card for the grid view on /leads.
+function leadTile(l) {
+  const name = [l.first_name, l.last_name].filter(Boolean).join(" ") || "—";
+  const bits = [];
+  if (l.next_follow_up_at) bits.push(`Follow up ${fmtDate(l.next_follow_up_at)}`);
+  else if (l.updated_at) bits.push(`Updated ${fmtDate(l.updated_at)}`);
+  else if (l.created_at) bits.push(`Added ${fmtDate(l.created_at)}`);
+  const avatar = l.photo_url
+    ? h("span", { class: "tile-avatar" },
+        h("img", { src: l.photo_url, alt: "", loading: "lazy" }))
+    : h("span", { class: "tile-avatar placeholder" }, initialsOf(l));
+  return h(
+    "a",
+    { class: "tile", href: `#/lead/${l.id}` },
+    h("div", { class: "tile-head" },
+      h("span", { class: "badge" }, label(STATUSES, l.status)),
+      avatar,
+    ),
+    h("div", { class: "tile-name" }, name),
+    l.phone ? h("div", { class: "tile-line" }, l.phone) : null,
+    l.email ? h("div", { class: "tile-line truncate" }, l.email) : null,
+    h("div", { class: "tile-foot" }, bits.join(" · ")),
+  );
+}
+
+// --- persistent view prefs for /leads ------------------------------------
+
+const LEADS_VIEW_KEY = "gaydonneCRM.leadsView.v1";
+const SORT_OPTIONS = [
+  ["updated_desc",    "Recently updated",      { col: "updated_at", asc: false }],
+  ["created_desc",    "Newest added",          { col: "created_at", asc: false }],
+  ["created_asc",     "Oldest added",          { col: "created_at", asc: true }],
+  ["last_name_asc",   "Last name A → Z",       { col: "last_name", asc: true,  nullsFirst: false }],
+  ["last_name_desc",  "Last name Z → A",       { col: "last_name", asc: false, nullsFirst: false }],
+  ["first_name_asc",  "First name A → Z",      { col: "first_name", asc: true, nullsFirst: false }],
+  ["followup_asc",    "Follow-up soonest",     { col: "next_follow_up_at", asc: true, nullsFirst: false }],
+];
+
+function loadLeadsView() {
+  try {
+    const raw = localStorage.getItem(LEADS_VIEW_KEY);
+    if (!raw) return {};
+    const v = JSON.parse(raw);
+    return (v && typeof v === "object") ? v : {};
+  } catch { return {}; }
+}
+function saveLeadsView(v) {
+  try { localStorage.setItem(LEADS_VIEW_KEY, JSON.stringify(v)); } catch {}
+}
+
 async function renderLeads() {
+  const prefs = {
+    sort:   "updated_desc",
+    status: "",
+    type:   "",
+    search: "",
+    ...loadLeadsView(),
+  };
+
   view.append(h("h1", {}, "Leads"));
 
-  const search = h("input", { placeholder: "Search name, email, phone" });
-  const statusSel = h("select", {}, h("option", { value: "" }, "All statuses"),
+  const search = h("input", {
+    placeholder: "Search name, email, phone",
+    value: prefs.search,
+  });
+  const statusSel = h("select", {},
+    h("option", { value: "" }, "All statuses"),
     ...STATUSES.map(([v, t]) => h("option", { value: v }, t)));
-  const typeSel = h("select", {}, h("option", { value: "" }, "All types"),
+  const typeSel = h("select", {},
+    h("option", { value: "" }, "All types"),
     ...TYPES.map(([v, t]) => h("option", { value: v }, t)));
-  const list = h("div", {});
+  const sortSel = h("select", {},
+    ...SORT_OPTIONS.map(([v, t]) => h("option", { value: v }, t)));
+  statusSel.value = prefs.status;
+  typeSel.value   = prefs.type;
+  sortSel.value   = prefs.sort;
+
+  const grid = h("div", { class: "tiles" });
+  const countLine = h("p", { class: "muted", style: "margin:0 0 0.75rem" }, "");
 
   async function refresh() {
+    const sortDef = (SORT_OPTIONS.find((o) => o[0] === sortSel.value)
+                  ?? SORT_OPTIONS[0])[2];
     let q = sb.from("leads")
-      .select("id, first_name, last_name, phone, email, status, created_at, next_follow_up_at")
+      .select("id, first_name, last_name, phone, email, status, created_at, updated_at, next_follow_up_at, photo_url")
       .eq("archived", false)
-      .order("created_at", { ascending: false })
-      .limit(200);
+      .order(sortDef.col, {
+        ascending: sortDef.asc,
+        nullsFirst: sortDef.nullsFirst ?? !sortDef.asc,
+      })
+      .limit(500);
     if (statusSel.value) q = q.eq("status", statusSel.value);
     if (typeSel.value)   q = q.eq("type", typeSel.value);
     const term = search.value.trim();
@@ -377,15 +474,26 @@ async function renderLeads() {
       );
     }
     const { data } = await q;
-    list.replaceChildren();
+    grid.replaceChildren();
     if (!data?.length) {
-      list.append(h("p", { class: "muted" }, "No leads yet."));
+      countLine.textContent = "";
+      grid.append(h("p", { class: "muted" }, "No leads match."));
     } else {
-      for (const l of data) list.append(leadCard(l));
+      countLine.textContent = `${data.length} lead${data.length === 1 ? "" : "s"}`;
+      for (const l of data) grid.append(leadTile(l));
     }
   }
 
-  const bar = h("div", { class: "toolbar" }, search, statusSel, typeSel);
+  function persist() {
+    saveLeadsView({
+      sort:   sortSel.value,
+      status: statusSel.value,
+      type:   typeSel.value,
+      search: search.value,
+    });
+  }
+
+  const bar = h("div", { class: "toolbar" }, search, sortSel, statusSel, typeSel);
   const actions = h(
     "div",
     { class: "toolbar" },
@@ -395,10 +503,13 @@ async function renderLeads() {
       onclick: () => exportCsv(),
     }, "Export CSV"),
   );
-  view.append(bar, actions, list);
-  search.addEventListener("input", debounce(refresh, 200));
-  statusSel.addEventListener("change", refresh);
-  typeSel.addEventListener("change", refresh);
+  view.append(bar, actions, countLine, grid);
+
+  const onChange = () => { persist(); refresh(); };
+  search.addEventListener("input", debounce(onChange, 200));
+  statusSel.addEventListener("change", onChange);
+  typeSel.addEventListener("change", onChange);
+  sortSel.addEventListener("change", onChange);
   refresh();
 }
 
@@ -805,6 +916,85 @@ async function renderSettings() {
   }, "Sign out"));
 }
 
+// Photo block for the lead detail view: round preview + Upload / Remove.
+function leadPhotoBlock(lead) {
+  const BUCKET = "lead-photos";
+  const avatar = h("div", { class: "lead-photo" });
+  const render = () => {
+    avatar.replaceChildren();
+    if (lead.photo_url) {
+      avatar.append(h("img", { src: lead.photo_url, alt: "" }));
+    } else {
+      avatar.append(h("span", { class: "lead-photo-initials" }, initialsOf(lead)));
+    }
+  };
+  render();
+
+  const fileInput = h("input", {
+    type: "file", accept: "image/*", hidden: true,
+    onchange: async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      try {
+        const blob = await resizeImage(file);
+        const path = `${lead.id}.jpg`;
+        const { error: upErr } = await sb.storage.from(BUCKET).upload(path, blob, {
+          contentType: "image/jpeg", upsert: true, cacheControl: "60",
+        });
+        if (upErr) throw upErr;
+        const { data: { publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(path);
+        const url = `${publicUrl}?t=${Date.now()}`;  // cache-bust
+        const { error: dbErr } = await sb.from("leads").update({ photo_url: url }).eq("id", lead.id);
+        if (dbErr) throw dbErr;
+        lead.photo_url = url;
+        render();
+        toast("Photo updated");
+      } catch (e) {
+        toast(e.message || "Upload failed");
+      } finally {
+        fileInput.value = "";
+      }
+    },
+  });
+
+  const uploadBtn = h("button", {
+    class: "btn outline",
+    type: "button",
+    onclick: () => fileInput.click(),
+  }, lead.photo_url ? "Change photo" : "Add photo");
+
+  const removeBtn = h("button", {
+    class: "link",
+    type: "button",
+    hidden: !lead.photo_url,
+    onclick: async () => {
+      if (!confirm("Remove photo?")) return;
+      const path = `${lead.id}.jpg`;
+      await sb.storage.from(BUCKET).remove([path]);  // best-effort
+      const { error } = await sb.from("leads").update({ photo_url: null }).eq("id", lead.id);
+      if (error) { toast(error.message); return; }
+      lead.photo_url = null;
+      render();
+      removeBtn.hidden = true;
+      uploadBtn.textContent = "Add photo";
+      toast("Photo removed");
+    },
+  }, "Remove");
+
+  // Keep the Remove button in sync when the user uploads a fresh photo.
+  fileInput.addEventListener("change", () => {
+    setTimeout(() => {
+      removeBtn.hidden = !lead.photo_url;
+      uploadBtn.textContent = lead.photo_url ? "Change photo" : "Add photo";
+    }, 0);
+  });
+
+  return h("div", { class: "lead-photo-block" },
+    avatar,
+    h("div", { class: "lead-photo-actions" }, uploadBtn, removeBtn, fileInput),
+  );
+}
+
 async function renderLeadDetail(id) {
   const [{ data: lead, error }, { data: acts }, { data: people }] = await Promise.all([
     sb.from("leads").select("*").eq("id", id).maybeSingle(),
@@ -818,6 +1008,9 @@ async function renderLeadDetail(id) {
 
   const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ");
   view.append(h("h1", {}, name));
+
+  // Photo ----------------------------------------------------------------
+  view.append(leadPhotoBlock(lead));
 
   // One-tap actions ------------------------------------------------------
   const actions = h("div", { class: "actions-row" });
