@@ -85,6 +85,27 @@ const fmtDate = (iso) => {
   });
 };
 
+// User-chosen timezone, persisted in localStorage. Everything date-related
+// (newsletter schedule picker, scheduled time display, "current time"
+// readouts) runs through this so Gaydonne sees her local wall time.
+const TZ_KEY = "gaydonneCRM.tz.v1";
+const TZ_OPTIONS = [
+  ["America/Chicago",     "Central (America/Chicago)"],
+  ["America/New_York",    "Eastern (America/New_York)"],
+  ["America/Denver",      "Mountain (America/Denver)"],
+  ["America/Los_Angeles", "Pacific (America/Los_Angeles)"],
+  ["America/Phoenix",     "Arizona, no DST (America/Phoenix)"],
+  ["America/Anchorage",   "Alaska (America/Anchorage)"],
+  ["Pacific/Honolulu",    "Hawaii (Pacific/Honolulu)"],
+];
+function getTimeZone() {
+  try { return localStorage.getItem(TZ_KEY) || "America/Chicago"; }
+  catch { return "America/Chicago"; }
+}
+function setTimeZone(tz) {
+  try { localStorage.setItem(TZ_KEY, tz); } catch {}
+}
+
 const todayISO = () => {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -730,12 +751,32 @@ async function renderNewsletter() {
   const whenNow = h("input", { type: "radio", name: "when", value: "now", checked: true });
   const whenLater = h("input", { type: "radio", name: "when", value: "later" });
   const whenInput = h("input", { type: "datetime-local", disabled: true });
-  // Default schedule to 1 hour from now, in Central (America/Chicago) local time.
+  // Default schedule to 1 hour from now, in the user's chosen timezone.
   whenInput.value = localInputValue(new Date(Date.now() + 60 * 60 * 1000));
+  const nowReadout = h("span", { class: "muted", style: "font-size:0.85rem" }, nowLabel());
+  const scheduledReadout = h("span", { class: "muted", style: "font-size:0.85rem" }, "");
+  const refreshReadouts = () => {
+    nowReadout.textContent = `Now: ${nowLabel()}`;
+    if (whenInput.value) {
+      const d = parseLocalInput(whenInput.value);
+      scheduledReadout.textContent = d ? `Will send: ${whenLabel(d)}` : "";
+    } else {
+      scheduledReadout.textContent = "";
+    }
+  };
+  refreshReadouts();
+  whenInput.addEventListener("input", refreshReadouts);
+  // Refresh the "Now" label every 30s so it doesn't go stale. Clear any
+  // previous ticker (newsletter view re-renders replace the DOM nodes,
+  // but a stale interval would keep running).
+  if (window.__nlNowTimer) clearInterval(window.__nlNowTimer);
+  window.__nlNowTimer = setInterval(refreshReadouts, 30_000);
+
   const applyWhen = () => {
     const picked = [whenNow, whenLater].find((r) => r.checked)?.value;
     whenInput.disabled = picked !== "later";
     sendBtn.textContent = picked === "later" ? "Schedule newsletter" : "Send newsletter";
+    scheduledReadout.style.display = picked === "later" ? "" : "none";
   };
   [whenNow, whenLater].forEach((r) => r.addEventListener("change", applyWhen));
 
@@ -780,8 +821,8 @@ async function renderNewsletter() {
       // Scheduled send -----------------------------------------------
       if (whenPick === "later") {
         if (!whenInput.value) { errMsg.textContent = "Pick a date and time."; return; }
-        const scheduledAt = new Date(whenInput.value);
-        if (isNaN(+scheduledAt) || scheduledAt <= new Date()) {
+        const scheduledAt = parseLocalInput(whenInput.value);
+        if (!scheduledAt || scheduledAt <= new Date()) {
           errMsg.textContent = "Pick a future date and time."; return;
         }
         const label = whenLabel(scheduledAt);
@@ -862,8 +903,11 @@ async function renderNewsletter() {
       whenNow, " Send now"),
     h("label", { style: "text-transform:none;letter-spacing:0;color:var(--text);font-size:0.95rem" },
       whenLater, " Schedule for later"),
+    nowReadout,
     whenInput,
-    h("p", { class: "muted hint" }, "Central time. Checked every minute, so sends may fire up to a minute after the chosen time."),
+    scheduledReadout,
+    h("p", { class: "muted hint" },
+      `All times are ${getTimeZone()}. Change in Settings. Checked every minute, so sends may fire up to a minute after the chosen time.`),
 
     errMsg,
     sendBtn,
@@ -907,10 +951,10 @@ async function renderNewsletter() {
 }
 
 // Format a Date as the value a <input type="datetime-local"> expects,
-// but in Central (America/Chicago) wall time instead of browser-local.
-function localInputValue(date) {
+// but in the user's chosen timezone instead of browser-local.
+function localInputValue(date, tz = getTimeZone()) {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", hour12: false,
   }).formatToParts(date);
   const get = (t) => parts.find((p) => p.type === t)?.value;
@@ -918,11 +962,33 @@ function localInputValue(date) {
   return `${get("year")}-${get("month")}-${get("day")}T${hr}:${get("minute")}`;
 }
 
-// Format a scheduled time in Central for display to Gaydonne.
-function whenLabel(date) {
+// Reverse of localInputValue: parse a datetime-local string as if it were
+// wall time in the given timezone, returning a UTC Date.
+function parseLocalInput(str, tz = getTimeZone()) {
+  // Parse the string as if it were UTC to get a fixed moment, then measure
+  // what that moment reads as in the target tz and offset accordingly.
+  const asUtc = new Date(str + ":00Z");
+  if (isNaN(+asUtc)) return null;
+  const inTz = new Date(asUtc.toLocaleString("en-US", { timeZone: tz }));
+  const inLocal = new Date(asUtc.toLocaleString("en-US"));
+  const offsetMs = inLocal.getTime() - inTz.getTime();
+  return new Date(asUtc.getTime() + offsetMs);
+}
+
+// Format a scheduled time in the user's tz for display.
+function whenLabel(date, tz = getTimeZone()) {
   return date.toLocaleString(undefined, {
-    timeZone: "America/Chicago",
+    timeZone: tz,
     month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit", timeZoneName: "short",
+  });
+}
+
+// Short "right now" label in the user's tz for the compose view.
+function nowLabel(tz = getTimeZone()) {
+  return new Date().toLocaleString(undefined, {
+    timeZone: tz,
+    weekday: "short", month: "short", day: "numeric",
     hour: "numeric", minute: "2-digit", timeZoneName: "short",
   });
 }
@@ -1131,6 +1197,22 @@ async function renderSettings() {
     h("button", { class: "btn outline block", type: "submit" }, "Update password"),
   );
   view.append(pwForm);
+
+  // Timezone --------------------------------------------------------
+  view.append(h("h2", {}, "Timezone"));
+  const tzSel = h("select", {},
+    ...TZ_OPTIONS.map(([v, label]) =>
+      h("option", { value: v, selected: v === getTimeZone() || undefined }, label)));
+  const tzNow = h("p", { class: "muted hint" }, `Now: ${nowLabel(tzSel.value)}`);
+  tzSel.addEventListener("change", () => {
+    setTimeZone(tzSel.value);
+    tzNow.textContent = `Now: ${nowLabel(tzSel.value)}`;
+    toast(`Timezone set to ${tzSel.value}`);
+  });
+  view.append(h("p", { class: "muted" },
+    "Used for scheduling newsletters and showing dates."));
+  view.append(tzSel);
+  view.append(tzNow);
 
   // Sign out ---------------------------------------------------------
   view.append(h("h2", {}, "Session"));
