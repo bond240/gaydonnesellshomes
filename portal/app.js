@@ -896,6 +896,42 @@ async function renderSettings() {
     class: "btn", style: "margin-top:0.5rem",
     onclick: hardSignOut,
   }, "Sign out"));
+
+  // Build info --------------------------------------------------------
+  view.append(h("h2", {}, "Build"));
+  const buildLine = h("p", { class: "muted" }, "Loading…");
+  view.append(buildLine);
+  fetchBuildInfo().then((info) => {
+    if (!info) { buildLine.textContent = "Build info unavailable"; return; }
+    buildLine.replaceChildren(
+      document.createTextNode("Build: "),
+      h("a", {
+        href: info.url, target: "_blank", rel: "noopener",
+        style: "font-family:ui-monospace,SFMono-Regular,Menlo,monospace",
+      }, info.sha),
+      document.createTextNode(` · ${info.date}`),
+    );
+    if (info.message) {
+      view.append(h("p", { class: "hint", style: "margin-top:0.25rem" }, info.message));
+    }
+  });
+}
+
+async function fetchBuildInfo() {
+  try {
+    const r = await fetch(
+      "https://api.github.com/repos/bond240/gaydonnesellshomes/commits/main",
+      { headers: { Accept: "application/vnd.github+json" } },
+    );
+    if (!r.ok) return null;
+    const c = await r.json();
+    return {
+      sha:     (c.sha || "").slice(0, 7),
+      message: (c.commit?.message || "").split("\n")[0],
+      date:    fmtDate(c.commit?.committer?.date),
+      url:     c.html_url,
+    };
+  } catch { return null; }
 }
 
 // Photo block for the lead detail view: round preview + Upload / Remove.
