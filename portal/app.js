@@ -121,7 +121,7 @@ const routes = [
   [/^\/$/,               renderToday],
   [/^\/leads$/,          renderLeads],
   [/^\/new$/,            renderNewLead],
-  [/^\/newsletter$/,     renderNewsletter],
+  [/^\/newsletter(?:\?.*)?$/, renderNewsletter],
   [/^\/newsletter\/(.+)$/, renderNewsletterDetail],
   [/^\/settings$/,       renderSettings],
   [/^\/lead\/(.+)$/,     renderLeadDetail],
@@ -616,12 +616,17 @@ async function renderNewLead() {
 async function renderNewsletter() {
   view.append(h("h1", {}, "Newsletter"));
 
-  // Load eligible leads (email on file, not opted out, not archived).
-  const { data: leads } = await sb.from("leads")
-    .select("id, first_name, last_name, email, status, type, email_opt_out")
-    .eq("archived", false)
-    .not("email", "is", null)
-    .order("created_at", { ascending: false });
+  // Load eligible leads + saved templates in parallel.
+  const [{ data: leads }, { data: templates }] = await Promise.all([
+    sb.from("leads")
+      .select("id, first_name, last_name, email, status, type, email_opt_out")
+      .eq("archived", false)
+      .not("email", "is", null)
+      .order("created_at", { ascending: false }),
+    sb.from("newsletter_templates")
+      .select("id, name, subject, body_text, body_html, updated_at")
+      .order("updated_at", { ascending: false }),
+  ]);
   const eligible = (leads ?? []).filter((l) => !l.email_opt_out);
 
   view.append(h("p", { class: "muted" },
@@ -636,6 +641,14 @@ async function renderNewsletter() {
     placeholder: "Message body. Use {{name}} to insert the recipient's name.",
     required: true, style: "min-height:10rem",
   });
+
+  // Prefill from ?from=<newsletter-id> or ?template=<template-id> if present.
+  const prefillId = new URLSearchParams(location.hash.split("?")[1] || "").get("from");
+  if (prefillId) {
+    const { data: src } = await sb.from("newsletters")
+      .select("subject, body_text, body_html").eq("id", prefillId).maybeSingle();
+    if (src) { subject.value = src.subject; bodyText.value = src.body_text; }
+  }
 
   // Recipient mode radios -----------------------------------------
   const modeAll = h("input", { type: "radio", name: "mode", value: "all", checked: true });
@@ -751,6 +764,7 @@ async function renderNewsletter() {
     },
   },
     h("h2", {}, "Compose"),
+    templateBar(templates ?? [], subject, bodyText, () => route()),
     h("label", {}, "Subject"), subject,
     h("label", {}, "Body"), bodyText,
     h("p", { class: "muted hint" }, "{{name}} will be replaced with the recipient's name."),
@@ -783,15 +797,81 @@ async function renderNewsletter() {
     view.append(h("p", { class: "muted" }, "No newsletters sent yet."));
   } else {
     for (const c of campaigns) {
-      view.append(h("a", { class: "card", href: `#/newsletter/${c.id}` },
-        h("span", { class: "badge" }, c.status),
-        h("span", { class: "name" }, c.subject),
-        h("div", { class: "meta" },
-          `${fmtDateTime(c.created_at)} · sent ${c.sent_count}/${c.recipient_count}`
-          + (c.failed_count ? ` · ${c.failed_count} failed` : "")),
-      ));
+      const card = h("div", { class: "card", style: "display:flex;align-items:center;gap:0.5rem" },
+        h("a", { href: `#/newsletter/${c.id}`, style: "flex:1;color:inherit;display:block" },
+          h("span", { class: "badge" }, c.status),
+          h("span", { class: "name", style: "display:block" }, c.subject),
+          h("div", { class: "meta" },
+            `${fmtDateTime(c.created_at)} · sent ${c.sent_count}/${c.recipient_count}`
+            + (c.failed_count ? ` · ${c.failed_count} failed` : "")),
+        ),
+        h("a", {
+          class: "link",
+          href: `#/newsletter?from=${c.id}`,
+          style: "padding:0.3rem 0.6rem;white-space:nowrap",
+          title: "Reuse this content for a new send",
+        }, "Duplicate"),
+      );
+      view.append(card);
     }
   }
+}
+
+// --- Template picker/save bar shown above the compose fields -----------
+function templateBar(templates, subjectEl, bodyEl, reload) {
+  const picker = h("select", {},
+    h("option", { value: "" }, templates.length
+      ? `— Load template (${templates.length}) —`
+      : "— No saved templates yet —"),
+    ...templates.map((t) => h("option", { value: t.id }, t.name)));
+  picker.addEventListener("change", () => {
+    const t = templates.find((x) => x.id === picker.value);
+    if (!t) return;
+    subjectEl.value = t.subject;
+    bodyEl.value    = t.body_text;
+    picker.value = "";  // reset so the same template can be reloaded
+    toast(`Loaded "${t.name}"`);
+  });
+
+  const saveBtn = h("button", {
+    class: "link",
+    type: "button",
+    style: "padding:0.3rem 0.6rem;white-space:nowrap",
+    onclick: async () => {
+      if (!subjectEl.value.trim() || !bodyEl.value.trim()) {
+        toast("Fill in subject and body first"); return;
+      }
+      const name = prompt("Template name:", subjectEl.value.slice(0, 60));
+      if (!name?.trim()) return;
+      const { error } = await sb.from("newsletter_templates").insert({
+        name: name.trim(),
+        subject: subjectEl.value,
+        body_text: bodyEl.value,
+      });
+      if (error) { toast(error.message); return; }
+      toast("Template saved");
+      reload();
+    },
+  }, "Save as template");
+
+  const manageBtn = h("button", {
+    class: "link",
+    type: "button",
+    style: "padding:0.3rem 0.6rem;white-space:nowrap",
+    hidden: templates.length === 0,
+    onclick: async () => {
+      const t = templates.find((x) => x.id === picker.value);
+      if (!t) { toast("Pick a template first"); return; }
+      if (!confirm(`Delete template "${t.name}"?`)) return;
+      const { error } = await sb.from("newsletter_templates").delete().eq("id", t.id);
+      if (error) { toast(error.message); return; }
+      toast("Template deleted");
+      reload();
+    },
+  }, "Delete");
+
+  return h("div", { class: "toolbar", style: "margin-bottom:0.5rem" },
+    picker, saveBtn, manageBtn);
 }
 
 async function renderNewsletterDetail(id) {
@@ -820,7 +900,8 @@ async function renderNewsletterDetail(id) {
     style: "white-space:pre-wrap;border:1px solid var(--line);border-radius:8px;padding:1rem;background:var(--bg-alt)",
   }, c.body_text));
 
-  view.append(h("div", { style: "margin-top:1.5rem" },
+  view.append(h("div", { style: "margin-top:1.5rem;display:flex;gap:0.5rem;flex-wrap:wrap" },
+    h("a", { class: "btn", href: `#/newsletter?from=${id}` }, "Duplicate"),
     h("a", { class: "btn outline", href: "#/newsletter" }, "Back to newsletter"),
   ));
 }
