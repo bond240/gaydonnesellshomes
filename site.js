@@ -83,3 +83,44 @@ if (tpl) {
   img.addEventListener('touchend', e => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 40) show(idx + (dx < 0 ? 1 : -1)); });
   document.querySelectorAll('[data-open-photo]').forEach(el => el.addEventListener('click', () => open(parseInt(el.dataset.openPhoto, 10) || 0)));
 }
+
+// ---------- Visitor beacon (first-party, no cookies) ----------
+// Posts a single tiny row per page view to the CRM's track-visit edge
+// function. visitor_id is a random uuid kept in localStorage so the CRM can
+// approximate unique-visitor counts without any cookies or third-party JS.
+// Fire-and-forget: never blocks navigation, swallows any error.
+(() => {
+  try {
+    const SUPABASE_URL = 'https://ndujamnmlzchidycmabi.supabase.co';
+    if (navigator.doNotTrack === '1') return;      // honour DNT
+    if (location.hostname === 'localhost')  return; // skip local previews
+    if (location.hostname === '127.0.0.1')  return;
+
+    const KEY = 'gsh.vid';
+    let vid = null;
+    try { vid = localStorage.getItem(KEY); } catch {}
+    if (!vid) {
+      vid = (crypto.randomUUID && crypto.randomUUID()) ||
+            Date.now().toString(36) + Math.random().toString(36).slice(2);
+      try { localStorage.setItem(KEY, vid); } catch {}
+    }
+
+    const payload = JSON.stringify({
+      path:       location.pathname || '/',
+      referrer:   document.referrer || null,
+      visitor_id: vid,
+    });
+    const url = SUPABASE_URL + '/functions/v1/track-visit';
+
+    // Prefer sendBeacon so the request survives navigation. The function
+    // handles both JSON and text/plain bodies.
+    const sent = navigator.sendBeacon &&
+      navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+    if (!sent) {
+      fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true })
+        .catch(() => {});
+    }
+  } catch {
+    /* never let analytics break the site */
+  }
+})();

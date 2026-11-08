@@ -1526,6 +1526,16 @@ async function renderSettings() {
   view.append(tzSel);
   view.append(tzNow);
 
+  // Site analytics ---------------------------------------------------
+  view.append(h("h2", {}, "Site analytics"));
+  view.append(h("p", { class: "muted" },
+    "Visitors to gaydonnesellshomes.com. First-party, no cookies, no third-party trackers."));
+  const analyticsBox = h("div", { class: "analytics" }, h("p", { class: "muted" }, "Loading…"));
+  view.append(analyticsBox);
+  renderSiteAnalytics(analyticsBox).catch((e) => {
+    analyticsBox.replaceChildren(h("p", { style: "color:#b00020" }, "Couldn't load: " + e.message));
+  });
+
   // Sign out ---------------------------------------------------------
   view.append(h("h2", {}, "Session"));
   view.append(h("button", {
@@ -1551,6 +1561,158 @@ async function renderSettings() {
       view.append(h("p", { class: "hint", style: "margin-top:0.25rem" }, info.message));
     }
   });
+}
+
+// ---------------- Site analytics ----------------------------------------
+
+const ANALYTICS_WINDOW_DAYS = 30;
+
+async function renderSiteAnalytics(box) {
+  const since = new Date(Date.now() - ANALYTICS_WINDOW_DAYS * 86400_000);
+  // Pull just the fields we need, newest first. For this small site 10k is
+  // more than a year of traffic; we cap to be safe.
+  const { data, error } = await sb.from("site_visits")
+    .select("ts, path, referrer, visitor_id")
+    .gte("ts", since.toISOString())
+    .order("ts", { ascending: false })
+    .limit(10000);
+  if (error) throw error;
+  const rows = data ?? [];
+
+  if (!rows.length) {
+    box.replaceChildren(
+      h("p", { class: "muted" },
+        "No visits yet in the last 30 days. Once someone opens gaydonnesellshomes.com their visit will appear here."));
+    return;
+  }
+
+  const totalVisits   = rows.length;
+  const uniqueVisitors = new Set(rows.map((r) => r.visitor_id).filter(Boolean)).size;
+  const last24  = rows.filter((r) => new Date(r.ts) >= new Date(Date.now() - 86400_000)).length;
+  const last7d  = rows.filter((r) => new Date(r.ts) >= new Date(Date.now() - 7 * 86400_000)).length;
+
+  // Daily buckets, oldest -> newest, in the user's chosen timezone.
+  const tz = getTimeZone();
+  const dayKey = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const dayShort = (d) => new Intl.DateTimeFormat(undefined, { timeZone: tz, month: "short", day: "numeric" }).format(d);
+  const buckets = new Map();
+  for (let i = ANALYTICS_WINDOW_DAYS - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400_000);
+    buckets.set(dayKey(d), { d, n: 0, u: new Set() });
+  }
+  for (const r of rows) {
+    const k = dayKey(new Date(r.ts));
+    const b = buckets.get(k);
+    if (b) { b.n++; if (r.visitor_id) b.u.add(r.visitor_id); }
+  }
+  const series = [...buckets.values()];
+
+  const topPages = countTop(rows.map((r) => r.path));
+  const topRefs  = countTop(rows.map((r) => {
+    const r2 = (r.referrer || "").trim();
+    if (!r2) return "(direct)";
+    try { return new URL(r2).hostname.replace(/^www\./, ""); } catch { return r2; }
+  }).filter((h) => h !== "gaydonnesellshomes.com" && h !== "www.gaydonnesellshomes.com"));
+
+  box.replaceChildren(
+    h("div", { class: "stat-row" },
+      stat("Visits · 30d",    totalVisits.toLocaleString()),
+      stat("Unique visitors", uniqueVisitors.toLocaleString()),
+      stat("Last 7 days",     last7d.toLocaleString()),
+      stat("Last 24 hours",   last24.toLocaleString()),
+    ),
+    h("div", { class: "analytics-chart" },
+      h("h3", { style: "margin:1rem 0 0.5rem" }, "Visits per day"),
+      visitsChart(series, dayShort),
+    ),
+    h("div", { class: "analytics-split" },
+      h("div", {},
+        h("h3", { style: "margin:1rem 0 0.5rem" }, "Top pages"),
+        topList(topPages, 6, (k) => k || "/"),
+      ),
+      h("div", {},
+        h("h3", { style: "margin:1rem 0 0.5rem" }, "Top referrers"),
+        topList(topRefs, 6, (k) => k),
+      ),
+    ),
+  );
+}
+
+function stat(label, value) {
+  return h("div", { class: "stat" },
+    h("div", { class: "stat-value" }, value),
+    h("div", { class: "stat-label" }, label),
+  );
+}
+
+function countTop(items) {
+  const m = new Map();
+  for (const k of items) m.set(k, (m.get(k) ?? 0) + 1);
+  return [...m.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function topList(entries, limit, fmt) {
+  if (!entries.length) return h("p", { class: "muted hint" }, "No data yet.");
+  const max = entries[0][1] || 1;
+  return h("ul", { class: "top-list" },
+    ...entries.slice(0, limit).map(([k, n]) =>
+      h("li", {},
+        h("span", { class: "top-bar", style: `width:${Math.max(6, Math.round((n / max) * 100))}%` }),
+        h("span", { class: "top-key" }, fmt(k)),
+        h("span", { class: "top-n"   }, n.toLocaleString()),
+      )));
+}
+
+function visitsChart(series, dayShort) {
+  const W = 600, H = 140, P = 24;
+  const bw = (W - P * 2) / series.length;
+  const max = Math.max(1, ...series.map((s) => s.n));
+  const bars = series.map((s, i) => {
+    const barH = Math.round((s.n / max) * (H - P * 2));
+    const x = P + i * bw + 1;
+    const y = H - P - barH;
+    const label = `${dayShort(s.d)} — ${s.n} visit${s.n === 1 ? "" : "s"}, ${s.u.size} visitor${s.u.size === 1 ? "" : "s"}`;
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", String(x));
+    rect.setAttribute("y", String(y));
+    rect.setAttribute("width",  String(Math.max(2, bw - 2)));
+    rect.setAttribute("height", String(Math.max(1, barH)));
+    rect.setAttribute("fill", "var(--ink)");
+    rect.setAttribute("rx", "2");
+    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    title.textContent = label;
+    rect.appendChild(title);
+    return rect;
+  });
+  // X-axis ticks: first, middle, last
+  const xLabels = [0, Math.floor(series.length / 2), series.length - 1].map((i) => {
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    t.setAttribute("x", String(P + i * bw + bw / 2));
+    t.setAttribute("y", String(H - 6));
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("font-size", "10");
+    t.setAttribute("fill", "var(--muted)");
+    t.textContent = dayShort(series[i].d);
+    return t;
+  });
+  const yMax = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  yMax.setAttribute("x", String(P - 4));
+  yMax.setAttribute("y", String(P));
+  yMax.setAttribute("text-anchor", "end");
+  yMax.setAttribute("font-size", "10");
+  yMax.setAttribute("fill", "var(--muted)");
+  yMax.textContent = String(max);
+
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("class", "visits-chart");
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.style.width = "100%";
+  svg.style.height = "160px";
+  bars.forEach((b) => svg.appendChild(b));
+  xLabels.forEach((t) => svg.appendChild(t));
+  svg.appendChild(yMax);
+  return svg;
 }
 
 async function fetchBuildInfo() {

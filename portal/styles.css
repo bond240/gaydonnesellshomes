@@ -277,6 +277,47 @@ textarea { min-height: 5rem; resize: vertical; }
   z-index: 20;
 }
 
+/* Site analytics -------------------------------------------------------- */
+.analytics { margin-top: 0.5rem; }
+.stat-row {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem; margin: 0.75rem 0 1rem;
+}
+.stat {
+  background: var(--bg-2, #f6f6f6); border: 1px solid var(--line);
+  border-radius: 0.5rem; padding: 0.75rem 0.9rem;
+}
+.stat-value { font-size: 1.4rem; font-weight: 500; line-height: 1.1; }
+.stat-label { color: var(--muted); font-size: 0.72rem;
+              text-transform: uppercase; letter-spacing: 0.1em; margin-top: 0.25rem; }
+.analytics-chart svg.visits-chart { display: block; width: 100%; height: 160px; }
+.analytics-split {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 0.5rem;
+}
+.top-list { list-style: none; padding: 0; margin: 0; }
+.top-list li {
+  position: relative; display: grid;
+  grid-template-columns: 1fr auto; align-items: center;
+  padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+.top-list li:last-child { border-bottom: 0; }
+.top-list .top-bar {
+  position: absolute; inset: 2px auto 2px 0;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  border-radius: 0.25rem; z-index: 0;
+}
+.top-list .top-key {
+  position: relative; z-index: 1; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; padding-right: 0.5rem;
+}
+.top-list .top-n   { position: relative; z-index: 1; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+  .stat-row { grid-template-columns: repeat(2, 1fr); }
+  .analytics-split { grid-template-columns: 1fr; }
+}
+
 /* Sign-in ---------------------------------------------------------------- */
 .signin {
   max-width: 20rem; margin: 4rem auto; padding: 1rem;
